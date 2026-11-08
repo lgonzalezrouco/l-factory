@@ -1,0 +1,34 @@
+{
+  "name": "l-factory",
+  "owner": {
+    "name": "Lucas Gonzalez Rouco"
+  },
+  "plugins": [
+    {
+      "name": "effect-tsgo-lsp",
+      "description": "TypeScript 7 (tsgo) LSP patched by @effect/tsgo, using this project's node_modules",
+      "version": "0.1.0",
+      "source": "./plugins/effect-tsgo-lsp",
+      "strict": false,
+      "lspServers": {
+        "effect-tsgo": {
+          "command": "sh",
+          "args": [
+            "-c",
+            "exec \"${CLAUDE_PROJECT_DIR:-$PWD}/node_modules/.bin/tsc\" --lsp --stdio"
+          ],
+          "extensionToLanguage": {
+            ".ts": "typescript",
+            ".tsx": "typescriptreact",
+            ".mts": "typescript",
+            ".cts": "typescript",
+            ".js": "javascript",
+            ".jsx": "javascriptreact",
+            ".mjs": "javascript",
+            ".cjs": "javascript"
+          }
+        }
+      }
+    }
+  ]
+}
