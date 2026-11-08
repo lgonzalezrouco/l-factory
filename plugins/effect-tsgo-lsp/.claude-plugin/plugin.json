@@ -1,0 +1,6 @@
+{
+  "name": "effect-tsgo-lsp",
+  "version": "0.1.0",
+  "description": "Effect-patched tsgo language server",
+  "author": { "name": "Lucas Gonzalez Rouco" }
+}

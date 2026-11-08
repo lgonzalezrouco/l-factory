@@ -1,0 +1,47 @@
+{
+  "name": "l-factory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal software factory: an Effect v4 orchestrator that turns tickets into verified PRs",
+  "keywords": [],
+  "license": "AGPL-3.0-only",
+  "author": "",
+  "type": "module",
+  "scripts": {
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint --type-aware --deny-warnings",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm secrets && pnpm test",
+    "prepare": "effect-tsgo patch --oxlint && sh scripts/setup-claude.sh && lefthook install",
+    "setup:claude": "sh scripts/setup-claude.sh",
+    "secrets": "secretlint \"**/*\""
+  },
+  "dependencies": {
+    "effect": "^4.1.2"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@effect/tsgo": "^0.67.5",
+    "@effect/vitest": "^4.1.2",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.1.0",
+    "@types/node": "^24.19.2",
+    "lefthook": "^2.2.2",
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0",
+    "oxlint-tsgolint": "^7.0.2006",
+    "secretlint": "^13.1.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.18.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.18.0"
+}

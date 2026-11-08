@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format
+      glob: "*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml}"
+      run: pnpm exec oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    - name: lint
+      glob: "*.{ts,tsx,js,mjs,cjs}"
+      run: pnpm exec oxlint --type-aware --deny-warnings {staged_files}
+    - name: secrets
+      run: pnpm exec secretlint {staged_files}
+    - name: typecheck
+      run: pnpm typecheck
+
+pre-push:
+  jobs:
+    - name: check
+      run: pnpm check
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: pnpm exec commitlint --edit {1}

@@ -1,0 +1,21 @@
+{
+  "enabledPlugins": {
+    "pstack@cursor-plugins": true,
+    "effect-tsgo-lsp@l-factory": true,
+    "cursor-team-kit@cursor-plugins-claude": true
+  },
+  "extraKnownMarketplaces": {
+    "l-factory": {
+      "source": {
+        "source": "github",
+        "repo": "lgonzalezrouco/l-factory"
+      }
+    },
+    "cursor-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "cursor/plugins"
+      }
+    }
+  }
+}
