@@ -16,8 +16,10 @@ const formatState = (state: TicketState): string => {
   }
 };
 
+const stateWidth = "waiting-on-human (building)".length;
+
 const formatTicket = (ticket: Ticket): string =>
-  `${ticket.id}  ${formatState(ticket.state).padEnd(27)}  ${ticket.title}`;
+  `${ticket.id}  ${formatState(ticket.state).padEnd(stateWidth)}  ${ticket.title}`;
 
 const formatEvent = ({ _tag, ...fields }: TicketEvent): string =>
   [_tag, ...Object.entries(fields).map(([key, value]) => `${key}=${value}`)].join(" ");
