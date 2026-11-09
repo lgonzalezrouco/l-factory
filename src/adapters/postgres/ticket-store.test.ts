@@ -36,8 +36,8 @@ layer(TicketStorePostgres.pipe(Layer.provideMerge(TestDatabase)), { timeout: "2 
           () => sql`DELETE FROM tickets WHERE id = ${id}`.pipe(Effect.orDie),
         );
 
-        expect((yield* Effect.flip(store.get(id)))._tag).toBe("SchemaError");
-        expect((yield* Effect.flip(store.list))._tag).toBe("SchemaError");
+        expect((yield* Effect.flip(store.get(id)))._tag).toBe("StoredTicketUndecodable");
+        expect((yield* Effect.flip(store.list))._tag).toBe("StoredTicketUndecodable");
       }),
     );
   },

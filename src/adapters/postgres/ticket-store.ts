@@ -2,6 +2,7 @@ import { PgClient } from "@effect/sql-pg";
 import { Array, Effect, Layer, Schema } from "effect";
 import type { SqlError } from "effect/sql";
 import {
+  StoredTicketUndecodable,
   Ticket,
   TicketNotFound,
   TicketStore,
@@ -10,8 +11,13 @@ import {
 import type { TicketState } from "../../domain/ticket/ticket.js";
 
 const initialState: TicketState = { _tag: "new" };
-const decodeTickets = Schema.decodeUnknownEffect(Schema.Array(Ticket));
-const decodeTicket = Schema.decodeUnknownEffect(Schema.Tuple([Ticket]));
+const undecodable = Effect.mapError(
+  (cause: Schema.SchemaError) => new StoredTicketUndecodable({ cause }),
+);
+const decodeTickets = (rows: unknown) =>
+  Schema.decodeUnknownEffect(Schema.Array(Ticket))(rows).pipe(undecodable);
+const decodeTicket = (rows: unknown) =>
+  Schema.decodeUnknownEffect(Schema.Tuple([Ticket]))(rows).pipe(undecodable);
 
 const unavailable = Effect.mapError(
   (cause: SqlError.SqlError) => new TicketStoreUnavailable({ cause }),
@@ -41,8 +47,9 @@ export const TicketStorePostgres = Layer.effect(TicketStore)(
         sql`SELECT ${columns} FROM tickets WHERE id = ${id}`.pipe(
           unavailable,
           Effect.flatMap(decodeTickets),
-          Effect.flatMap((tickets) => Effect.fromOption(Array.head(tickets))),
-          Effect.catchTag("NoSuchElementError", () => Effect.fail(new TicketNotFound({ id }))),
+          Effect.flatMap((tickets) =>
+            Effect.fromOption(Array.head(tickets), () => new TicketNotFound({ id })),
+          ),
         ),
     });
   }),

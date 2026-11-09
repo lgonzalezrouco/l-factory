@@ -27,8 +27,11 @@ export class TicketStoreUnavailable extends Data.TaggedError("TicketStoreUnavail
   readonly cause: unknown;
 }> {}
 
-/** A `SchemaError` means a stored ticket no longer decodes, such as a state outside the nine. */
-export type TicketStoreError = TicketStoreUnavailable | Schema.SchemaError;
+export class StoredTicketUndecodable extends Data.TaggedError("StoredTicketUndecodable")<{
+  readonly cause: Schema.SchemaError;
+}> {}
+
+export type TicketStoreError = TicketStoreUnavailable | StoredTicketUndecodable;
 
 export class TicketStore extends Context.Service<
   TicketStore,
