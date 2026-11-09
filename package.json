@@ -16,6 +16,7 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm secrets && pnpm test",
     "db:migrate": "tsx src/server/migrate.ts",
     "server": "tsx src/server/main.ts",
+    "factory": "tsx src/cli/main.ts",
     "prepare": "effect-tsgo patch --oxlint && sh scripts/setup-claude.sh && lefthook install",
     "setup:claude": "sh scripts/setup-claude.sh",
     "secrets": "secretlint \"**/*\""

@@ -27,6 +27,44 @@
           }
         ]
       }
+    },
+    {
+      "files": ["src/cli/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/adapters/**",
+                  "**/server/**",
+                  "**/worker/**",
+                  "@effect/sql-pg",
+                  "@temporalio/*"
+                ],
+                "message": "The CLI reaches the factory only through the API client."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/cli/**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/worker/**", "@temporalio/*"],
+                "message": "CLI tests stand up the API and its store, never the worker or Temporal."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

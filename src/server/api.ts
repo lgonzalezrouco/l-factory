@@ -16,7 +16,8 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
           Effect.catchTag("TicketNotFound", () => Effect.fail(new HttpApiError.NotFound())),
           Effect.orDie,
         ),
-      );
+      )
+      .handle("history", ({ params }) => store.history(params.id).pipe(Effect.orDie));
   }),
 );
 

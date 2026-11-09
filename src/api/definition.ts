@@ -7,7 +7,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
 } from "effect/http-api";
-import { Ticket, TicketId } from "../application/ticket-store.js";
+import { Ticket, TicketHistoryEntry, TicketId } from "../application/ticket-store.js";
 
 export const FactoryApi = HttpApi.make("factory")
   .add(
@@ -20,7 +20,11 @@ export const FactoryApi = HttpApi.make("factory")
       HttpApiEndpoint.get("get", "/tickets/:id", {
         params: { id: TicketId },
         success: Ticket,
-        error: HttpApiError.NotFound,
+        error: HttpApiError.NotFoundNoContent,
+      }),
+      HttpApiEndpoint.get("history", "/tickets/:id/events", {
+        params: { id: TicketId },
+        success: Schema.Array(TicketHistoryEntry),
       }),
     ),
   )

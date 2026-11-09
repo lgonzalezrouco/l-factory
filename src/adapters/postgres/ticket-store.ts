@@ -4,6 +4,7 @@ import type { SqlError } from "effect/sql";
 import {
   StoredTicketUndecodable,
   Ticket,
+  TicketHistoryEntry,
   TicketNotFound,
   TicketStore,
   TicketStoreUnavailable,
@@ -18,6 +19,9 @@ const decodeTickets = (rows: unknown) =>
   Schema.decodeUnknownEffect(Schema.Array(Ticket))(rows).pipe(undecodable);
 const decodeTicket = (rows: unknown) =>
   Schema.decodeUnknownEffect(Schema.Tuple([Ticket]))(rows).pipe(undecodable);
+
+const decodeHistory = (rows: unknown) =>
+  Schema.decodeUnknownEffect(Schema.Array(TicketHistoryEntry))(rows).pipe(undecodable);
 
 const unavailable = Effect.mapError(
   (cause: SqlError.SqlError) => new TicketStoreUnavailable({ cause }),
@@ -50,6 +54,11 @@ export const TicketStorePostgres = Layer.effect(TicketStore)(
           Effect.flatMap((tickets) =>
             Effect.fromOption(Array.head(tickets), () => new TicketNotFound({ id })),
           ),
+        ),
+      history: (id) =>
+        sql`SELECT seq, event, at FROM ticket_events WHERE ticket_id = ${id} ORDER BY seq`.pipe(
+          unavailable,
+          Effect.flatMap(decodeHistory),
         ),
     });
   }),
