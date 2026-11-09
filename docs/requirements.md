@@ -10,6 +10,7 @@ This document lists what the factory must do and what is already decided. It is 
 - **Phase** is when a requirement ships. `MVP` is Phase 1. `Phase 2` is risk-based auto-merge. `Phase 3` is self-improvement and scale, and includes everything the source marked "Later". A requirement split across phases names both.
 - **Check** is a pass/fail test of whether the requirement is met.
 - Decisions are ADR entries with IDs D-01 onward. Contradictions found in the source were resolved on 2026-11-09, and the last table records each one.
+- A **ticket** is one unit of work the factory takes from intake to a merged or failed PR. Where a requirement says "item", it means a ticket.
 
 ## Contents
 
@@ -34,7 +35,7 @@ This document lists what the factory must do and what is already decided. It is 
 
 ## Pipeline at a glance
 
-Every work item moves through the same steps. The risk class decides how much of the human ritual runs.
+Every ticket moves through the same steps. The risk class decides how much of the human ritual runs.
 
 | Step                             | Who            | By risk class                                         |
 | -------------------------------- | -------------- | ----------------------------------------------------- |
@@ -53,7 +54,7 @@ At steps 5, 7, and 9 no workflow waits. The run leaves a comment or label and en
 
 ## 1. Work queue and orchestration
 
-Each work item is one durable workflow driven by a deterministic state machine. Agents do the work inside activities. The orchestrator never asks an LLM what to do next.
+Each ticket is one durable workflow driven by a deterministic state machine. Agents do the work inside activities. The orchestrator never asks an LLM what to do next.
 
 | ID    | Requirement                                                                                                                                                                                                                           | Phase | Check                                                                                                                                                                   |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

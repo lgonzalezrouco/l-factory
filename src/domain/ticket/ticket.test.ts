@@ -6,14 +6,14 @@ import {
   type Status,
   type TransitionRejected,
   transition,
-  type WorkItemEvent,
-  WorkItemState,
-} from "./work-item.js";
+  type TicketEvent,
+  TicketState,
+} from "./ticket.js";
 
-type EventTag = WorkItemEvent["_tag"];
-type Outcome = WorkItemState | TransitionRejected["_tag"];
+type EventTag = TicketEvent["_tag"];
+type Outcome = TicketState | TransitionRejected["_tag"];
 
-const outcome = (result: Result.Result<WorkItemState, TransitionRejected>): Outcome =>
+const outcome = (result: Result.Result<TicketState, TransitionRejected>): Outcome =>
   Result.isSuccess(result) ? result.success : result.failure._tag;
 
 const states = {
@@ -26,7 +26,7 @@ const states = {
   ready: { _tag: "ready" },
   merged: { _tag: "merged" },
   failed: { _tag: "failed", reason: "budget" },
-} as const satisfies { readonly [S in Status]: WorkItemState };
+} as const satisfies { readonly [S in Status]: TicketState };
 
 const allStates = Object.values(states);
 
@@ -50,7 +50,7 @@ const eventsFor = (stage: RunStage) =>
     HumanAnswered: { _tag: "HumanAnswered" },
     RunFailed: { _tag: "RunFailed", stage, reason: "retries-exhausted" },
     PrMerged: { _tag: "PrMerged" },
-  }) as const satisfies { readonly [E in EventTag]: WorkItemEvent };
+  }) as const satisfies { readonly [E in EventTag]: TicketEvent };
 
 const x = "InvalidTransition";
 
@@ -72,7 +72,7 @@ const cells = (Object.keys(approved) as Array<Status>).flatMap((status) =>
 );
 
 describe("R-10: the schema decodes exactly the nine states", () => {
-  const decode = Schema.decodeUnknownResult(WorkItemState);
+  const decode = Schema.decodeUnknownResult(TicketState);
 
   it.each(allStates)("decodes $_tag", (state) => {
     expect(decode(state)).toEqual(Result.succeed(state));
