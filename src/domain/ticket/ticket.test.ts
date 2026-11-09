@@ -71,7 +71,7 @@ const cells = (Object.keys(approved) as Array<Status>).flatMap((status) =>
   (Object.keys(approved[status]) as Array<EventTag>).map((event) => [status, event] as const),
 );
 
-describe("R-10: the schema decodes exactly the nine states", () => {
+describe("the schema decodes exactly the nine states", () => {
   const decode = Schema.decodeUnknownResult(TicketState);
 
   it.each(allStates)("decodes $_tag", (state) => {
@@ -87,7 +87,7 @@ describe("R-10: the schema decodes exactly the nine states", () => {
   });
 });
 
-describe("R-10: only run stages have a running workflow, so waiting on human has none", () => {
+describe("only run stages have a running workflow, so waiting on human has none", () => {
   const running: { readonly [S in Status]: boolean } = {
     new: false,
     triage: true,
@@ -105,14 +105,14 @@ describe("R-10: only run stages have a running workflow, so waiting on human has
   });
 });
 
-describe("R-11: every (state, event) pair follows the approved table", () => {
+describe("every (state, event) pair follows the approved table", () => {
   it.each(cells)("%s + %s", (status, event) => {
     const result = transition(states[status], eventsFor(outcomeStage[status])[event], "released");
     expect(outcome(result)).toEqual(approved[status][event]);
   });
 });
 
-describe("R-11: HumanAnswered resumes the stage that asked", () => {
+describe("HumanAnswered resumes the stage that asked", () => {
   it("resumes triage", () => {
     const waiting = { _tag: "waiting-on-human", asker: "triage" } as const;
     expect(outcome(transition(waiting, { _tag: "HumanAnswered" }, "released"))).toEqual({
@@ -121,8 +121,8 @@ describe("R-11: HumanAnswered resumes the stage that asked", () => {
   });
 });
 
-describe("R-11: RunFailed keeps the reason the run reported", () => {
-  it("keeps budget (R-19)", () => {
+describe("RunFailed keeps the reason the run reported", () => {
+  it("keeps budget", () => {
     const event = { _tag: "RunFailed", stage: "triage", reason: "budget" } as const;
     expect(outcome(transition(states.triage, event, "released"))).toEqual({
       _tag: "failed",
@@ -131,14 +131,14 @@ describe("R-11: RunFailed keeps the reason the run reported", () => {
   });
 });
 
-describe("R-11: a redelivered run outcome from an earlier stage is refused", () => {
+describe("a redelivered run outcome from an earlier stage is refused", () => {
   it("spec + StepSucceeded from triage", () => {
     const result = transition(states.spec, { _tag: "StepSucceeded", stage: "triage" }, "released");
     expect(outcome(result)).toBe("InvalidTransition");
   });
 });
 
-describe("R-11: the engaged kill switch refuses every transition into a run stage", () => {
+describe("the engaged kill switch refuses every transition into a run stage", () => {
   it.each([
     ["new + TriageStarted", states.new, eventsFor("triage").TriageStarted, "triage"],
     ["triage + StepSucceeded", states.triage, eventsFor("triage").StepSucceeded, "spec"],
@@ -167,7 +167,7 @@ describe("R-11: the engaged kill switch refuses every transition into a run stag
   });
 });
 
-describe("R-11: the engaged kill switch still allows transitions into non-run states", () => {
+describe("the engaged kill switch still allows transitions into non-run states", () => {
   it.each([
     [
       "spec + NeedsHuman",
