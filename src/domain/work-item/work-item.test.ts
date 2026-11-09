@@ -30,8 +30,6 @@ const states = {
 
 const allStates = Object.values(states);
 
-// A run state receives outcomes from its own run. The other states have no run,
-// so each gets the outcome most plausibly delivered late to it.
 const outcomeStage: { readonly [S in Status]: RunStage } = {
   new: "triage",
   triage: "triage",
@@ -115,7 +113,6 @@ describe("R-11: every (state, event) pair follows the approved table", () => {
 });
 
 describe("R-11: HumanAnswered resumes the stage that asked", () => {
-  // The grid covers asker "building". A second asker catches a resume to any fixed stage.
   it("resumes triage", () => {
     const waiting = { _tag: "waiting-on-human", asker: "triage" } as const;
     expect(outcome(transition(waiting, { _tag: "HumanAnswered" }, "released"))).toEqual({
@@ -125,7 +122,6 @@ describe("R-11: HumanAnswered resumes the stage that asked", () => {
 });
 
 describe("R-11: RunFailed keeps the reason the run reported", () => {
-  // The grid covers "retries-exhausted". A second reason catches a cell that hardcodes one.
   it("keeps budget (R-19)", () => {
     const event = { _tag: "RunFailed", stage: "triage", reason: "budget" } as const;
     expect(outcome(transition(states.triage, event, "released"))).toEqual({
@@ -136,8 +132,6 @@ describe("R-11: RunFailed keeps the reason the run reported", () => {
 });
 
 describe("R-11: a redelivered run outcome from an earlier stage is refused", () => {
-  // One guard compares the outcome's stage with the current state for all three
-  // outcome events, so a stale stage is one equivalence class.
   it("spec + StepSucceeded from triage", () => {
     const result = transition(states.spec, { _tag: "StepSucceeded", stage: "triage" }, "released");
     expect(outcome(result)).toBe("InvalidTransition");
