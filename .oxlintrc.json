@@ -27,6 +27,34 @@
           }
         ]
       }
+    },
+    {
+      "files": ["src/cli/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/adapters/**",
+                  "**/server/**",
+                  "**/worker/**",
+                  "@effect/sql-pg",
+                  "@temporalio/*"
+                ],
+                "message": "The CLI reaches the factory only through the API client."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/cli/**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
     }
   ]
 }

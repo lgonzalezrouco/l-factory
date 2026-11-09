@@ -1,5 +1,5 @@
 import { Context, Data, Effect, Schema } from "effect";
-import { TicketState } from "../domain/ticket/ticket.js";
+import { TicketEvent, TicketState } from "../domain/ticket/ticket.js";
 
 export const TicketId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("TicketId"));
 export type TicketId = typeof TicketId.Type;
@@ -13,6 +13,13 @@ export const Ticket = Schema.Struct({
   createdAt: Schema.Date,
 });
 export type Ticket = typeof Ticket.Type;
+
+export const TicketHistoryEntry = Schema.Struct({
+  seq: Schema.Int,
+  event: TicketEvent,
+  at: Schema.Date,
+});
+export type TicketHistoryEntry = typeof TicketHistoryEntry.Type;
 
 export interface NewTicket {
   readonly title: string;
@@ -39,5 +46,8 @@ export class TicketStore extends Context.Service<
     readonly create: (ticket: NewTicket) => Effect.Effect<Ticket, TicketStoreError>;
     readonly list: Effect.Effect<ReadonlyArray<Ticket>, TicketStoreError>;
     readonly get: (id: TicketId) => Effect.Effect<Ticket, TicketNotFound | TicketStoreError>;
+    readonly history: (
+      id: TicketId,
+    ) => Effect.Effect<ReadonlyArray<TicketHistoryEntry>, TicketStoreError>;
   }
 >()("l-factory/TicketStore") {}
