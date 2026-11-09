@@ -1,4 +1,32 @@
 {
   "$schema": "./node_modules/@effect/tsgo/oxlint-schema.json",
-  "extends": ["./node_modules/@effect/tsgo/oxlint-presets/recommended.json"]
+  "extends": ["./node_modules/@effect/tsgo/oxlint-presets/recommended.json"],
+  "rules": {
+    "effecttsgo/unstable-api-usage": "off"
+  },
+  "overrides": [
+    {
+      "files": ["src/domain/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/application/**",
+                  "**/adapters/**",
+                  "**/server/**",
+                  "**/cli/**",
+                  "**/worker/**",
+                  "@temporalio/*"
+                ],
+                "message": "The domain imports nothing from outer layers or Temporal."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

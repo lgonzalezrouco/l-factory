@@ -1,8 +1,9 @@
-packages:
-  - "packages/*"
-  - "apps/*"
 allowBuilds:
+  cpu-features: false
+  esbuild: false
   lefthook: false
+  protobufjs: false
+  ssh2: false
 minimumReleaseAgeExclude:
   - "@effect/tsgo-darwin-arm64@0.67.5"
   - "@effect/tsgo-darwin-x64@0.67.5"
