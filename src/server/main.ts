@@ -5,12 +5,13 @@ import { HttpRouter } from "effect/http";
 import { ApiTokensPostgres } from "../adapters/postgres/api-tokens.js";
 import { PgClientApi } from "../adapters/postgres/client.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
+import { TicketRunsTemporal } from "../adapters/temporal/ticket-runs.js";
 import { ApiLive } from "./api.js";
 
 const port = 8080;
 
 const Server = HttpRouter.serve(ApiLive, { disableListenLog: true }).pipe(
-  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres)),
+  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, TicketRunsTemporal)),
   Layer.provide(PgClientApi),
   Layer.provide(NodeHttpServer.layer(createServer, { port })),
 );

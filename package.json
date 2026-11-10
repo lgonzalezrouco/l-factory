@@ -17,6 +17,7 @@
     "db:migrate": "node --env-file-if-exists=.env --import tsx src/server/migrate.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx src/server/seed.ts",
     "server": "node --env-file-if-exists=.env --import tsx src/server/main.ts",
+    "worker": "node --env-file-if-exists=.env --import tsx src/worker/main.ts",
     "factory": "node --env-file-if-exists=.env --import tsx src/cli/main.ts",
     "prepare": "effect-tsgo patch --oxlint && sh scripts/setup-claude.sh && lefthook install",
     "setup:claude": "sh scripts/setup-claude.sh",
