@@ -89,4 +89,19 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
       ]);
     }),
   );
+
+  it.effect("asks for FACTORY_API_TOKEN when the API rejects the request", () =>
+    Effect.gen(function* () {
+      const anonymous = yield* HttpApiClient.make(FactoryApi);
+      const error = yield* Effect.flip(
+        run("status").pipe(Effect.provideService(FactoryClient, anonymous)),
+      );
+
+      expect(error).toMatchObject({
+        _tag: "UserError",
+        userMessage:
+          "the factory API rejected the request: set FACTORY_API_TOKEN to a valid API token",
+      });
+    }),
+  );
 });
