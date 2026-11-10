@@ -2,15 +2,16 @@ import { createServer } from "node:http";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/http";
-import { PgClientLive } from "../adapters/postgres/client.js";
+import { ApiTokensPostgres } from "../adapters/postgres/api-tokens.js";
+import { PgClientApi } from "../adapters/postgres/client.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { ApiLive } from "./api.js";
 
 const port = 8080;
 
 const Server = HttpRouter.serve(ApiLive, { disableListenLog: true }).pipe(
-  Layer.provide(TicketStorePostgres),
-  Layer.provide(PgClientLive),
+  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres)),
+  Layer.provide(PgClientApi),
   Layer.provide(NodeHttpServer.layer(createServer, { port })),
 );
 

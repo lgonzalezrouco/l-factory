@@ -1,27 +1,36 @@
 import { Effect, Layer } from "effect";
 import { HttpApiBuilder, HttpApiError, HttpApiMiddleware } from "effect/http-api";
 import { FactoryApi } from "../api/definition.js";
+import { CurrentPrincipal } from "../application/tenancy.js";
 import { TicketStore } from "../application/ticket-store.js";
+import { AuthorizationLive } from "./auth.js";
 
 const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =>
   Effect.gen(function* () {
     const store = yield* TicketStore;
     return handlers
       .handle("create", ({ payload }) =>
-        store.create({ title: payload.title, body: payload.body ?? "" }).pipe(Effect.orDie),
+        CurrentPrincipal.use(({ orgId }) =>
+          store.create(orgId, { title: payload.title, body: payload.body ?? "" }),
+        ).pipe(Effect.orDie),
       )
-      .handle("list", () => store.list.pipe(Effect.orDie))
+      .handle("list", () =>
+        CurrentPrincipal.use(({ orgId }) => store.list(orgId)).pipe(Effect.orDie),
+      )
       .handle("get", ({ params }) =>
-        store.get(params.id).pipe(
+        CurrentPrincipal.use(({ orgId }) => store.get(orgId, params.id)).pipe(
           Effect.catchTag("TicketNotFound", () => Effect.fail(new HttpApiError.NotFound())),
           Effect.orDie,
         ),
       )
-      .handle("history", ({ params }) => store.history(params.id).pipe(Effect.orDie));
+      .handle("history", ({ params }) =>
+        CurrentPrincipal.use(({ orgId }) => store.history(orgId, params.id)).pipe(Effect.orDie),
+      );
   }),
 );
 
 export const ApiLive = HttpApiBuilder.layer(FactoryApi).pipe(
   Layer.provide(TicketsHandlers),
+  Layer.provide(AuthorizationLive),
   Layer.provide(HttpApiMiddleware.layerProblemDetails({ includeDetails: true })),
 );

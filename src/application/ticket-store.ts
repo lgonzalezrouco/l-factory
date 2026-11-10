@@ -1,5 +1,6 @@
 import { Context, Data, Effect, Schema } from "effect";
 import { TicketEvent, TicketState } from "../domain/ticket/ticket.js";
+import type { OrgId } from "./tenancy.js";
 
 export const TicketId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("TicketId"));
 export type TicketId = typeof TicketId.Type;
@@ -43,10 +44,14 @@ export type TicketStoreError = TicketStoreUnavailable | StoredTicketUndecodable;
 export class TicketStore extends Context.Service<
   TicketStore,
   {
-    readonly create: (ticket: NewTicket) => Effect.Effect<Ticket, TicketStoreError>;
-    readonly list: Effect.Effect<ReadonlyArray<Ticket>, TicketStoreError>;
-    readonly get: (id: TicketId) => Effect.Effect<Ticket, TicketNotFound | TicketStoreError>;
+    readonly create: (org: OrgId, ticket: NewTicket) => Effect.Effect<Ticket, TicketStoreError>;
+    readonly list: (org: OrgId) => Effect.Effect<ReadonlyArray<Ticket>, TicketStoreError>;
+    readonly get: (
+      org: OrgId,
+      id: TicketId,
+    ) => Effect.Effect<Ticket, TicketNotFound | TicketStoreError>;
     readonly history: (
+      org: OrgId,
       id: TicketId,
     ) => Effect.Effect<ReadonlyArray<TicketHistoryEntry>, TicketStoreError>;
   }
