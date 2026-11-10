@@ -1,4 +1,5 @@
-import { Config, Context, Effect, Layer } from "effect";
+import { Config, Context, Effect, Layer, Option } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { FactoryApi } from "../api/definition.js";
 
@@ -12,6 +13,15 @@ export const FactoryClientLive = Layer.effect(FactoryClient)(
     const baseUrl = yield* Config.String("FACTORY_API_URL").pipe(
       Config.withDefault("http://localhost:8080"),
     );
-    return yield* HttpApiClient.make(FactoryApi, { baseUrl });
+    const token = yield* Config.option(Config.Redacted("FACTORY_API_TOKEN"));
+    return yield* HttpApiClient.make(FactoryApi, {
+      baseUrl,
+      transformClient: HttpClient.mapRequest((request) =>
+        Option.match(token, {
+          onNone: () => request,
+          onSome: (value) => HttpClientRequest.bearerToken(request, value),
+        }),
+      ),
+    });
   }),
 );

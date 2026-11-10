@@ -1,6 +1,7 @@
 import { Console, Effect, Option } from "effect";
 import { Argument, CliError, Command, Flag } from "effect/cli";
 import type { HttpClientError } from "effect/http";
+import type { HttpApiError } from "effect/http-api";
 import { TicketId, type Ticket, type TicketHistoryEntry } from "../application/ticket-store.js";
 import type { TicketEvent, TicketState } from "../domain/ticket/ticket.js";
 import { FactoryClient } from "./client.js";
@@ -32,6 +33,15 @@ const unreachable = (reason: HttpClientError.TransportError) =>
     new CliError.UserError({
       cause: reason,
       userMessage: `cannot reach the factory API at ${new URL(reason.request.url).origin}`,
+    }),
+  );
+
+const rejected = (cause: HttpApiError.Unauthorized) =>
+  Effect.fail(
+    new CliError.UserError({
+      cause,
+      userMessage:
+        "the factory API rejected the request: set FACTORY_API_TOKEN to a valid API token",
     }),
   );
 
@@ -70,7 +80,10 @@ const create = Command.make(
       const client = yield* FactoryClient;
       const ticket = yield* client.tickets.create({ payload: { title, body } });
       yield* Console.log(formatTicket(ticket));
-    }).pipe(Effect.catchReason("HttpClientError", "TransportError", unreachable)),
+    }).pipe(
+      Effect.catchReason("HttpClientError", "TransportError", unreachable),
+      Effect.catchTag("Unauthorized", rejected),
+    ),
 );
 
 const status = Command.make(
@@ -79,6 +92,7 @@ const status = Command.make(
   ({ id }) =>
     (Option.isSome(id) ? printTicket(id.value) : printQueue).pipe(
       Effect.catchReason("HttpClientError", "TransportError", unreachable),
+      Effect.catchTag("Unauthorized", rejected),
     ),
 );
 

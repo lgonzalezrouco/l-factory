@@ -3,10 +3,16 @@ import { PgClient } from "@effect/sql-pg";
 import { expect, layer } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { Command } from "effect/cli";
-import { HttpRouter } from "effect/http";
+import { HttpClient, HttpClientRequest, HttpRouter } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { TestConsole } from "effect/testing";
-import { TestDatabase } from "../adapters/postgres/test-database.js";
+import { ApiTokensPostgres } from "../adapters/postgres/api-tokens.js";
+import {
+  TestDatabaseApi,
+  TestDatabaseOwner,
+  TestOrgs,
+  TestOrgsLive,
+} from "../adapters/postgres/test-database.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { FactoryApi } from "../api/definition.js";
 import { ApiLive } from "../server/api.js";
@@ -14,12 +20,20 @@ import { FactoryClient } from "./client.js";
 import { factory } from "./factory.js";
 
 const Api = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
-  Layer.provide(TicketStorePostgres),
-  Layer.provideMerge(TestDatabase),
+  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres)),
+  Layer.provide(TestDatabaseApi),
+  Layer.provideMerge(TestOrgsLive),
+  Layer.provideMerge(TestDatabaseOwner),
   Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
-const Cli = Layer.effect(FactoryClient)(HttpApiClient.make(FactoryApi)).pipe(
+const Cli = Layer.effect(FactoryClient)(
+  TestOrgs.use((orgs) =>
+    HttpApiClient.make(FactoryApi, {
+      transformClient: HttpClient.mapRequest(HttpClientRequest.bearerToken(orgs.default.token)),
+    }),
+  ),
+).pipe(
   Layer.provideMerge(Api),
   Layer.provideMerge(Layer.mergeAll(NodeServices.layer, TestConsole.layer)),
 );
@@ -58,9 +72,13 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
       const id = String(created).slice(0, 36);
       const sql = yield* PgClient.PgClient;
       yield* sql`
-        INSERT INTO ticket_events (ticket_id, seq, event, at) VALUES
-          (${id}, 2, '{"_tag":"StepSucceeded","stage":"triage"}', '2026-01-01T00:00:02Z'),
-          (${id}, 1, '{"_tag":"TriageStarted"}', '2026-01-01T00:00:01Z')
+        INSERT INTO ticket_events (ticket_id, org_id, project_id, seq, event, at)
+        SELECT tickets.id, org_id, project_id, seq, event::jsonb, at::timestamptz
+        FROM tickets, (VALUES
+          (2, '{"_tag":"StepSucceeded","stage":"triage"}', '2026-01-01T00:00:02Z'),
+          (1, '{"_tag":"TriageStarted"}', '2026-01-01T00:00:01Z')
+        ) AS events (seq, event, at)
+        WHERE tickets.id = ${id}
       `;
 
       expect(yield* run("status", id)).toEqual([
@@ -69,6 +87,21 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
         "  1  2026-01-01T00:00:01.000Z  TriageStarted",
         "  2  2026-01-01T00:00:02.000Z  StepSucceeded stage=triage",
       ]);
+    }),
+  );
+
+  it.effect("asks for FACTORY_API_TOKEN when the API rejects the request", () =>
+    Effect.gen(function* () {
+      const anonymous = yield* HttpApiClient.make(FactoryApi);
+      const error = yield* Effect.flip(
+        run("status").pipe(Effect.provideService(FactoryClient, anonymous)),
+      );
+
+      expect(error).toMatchObject({
+        _tag: "UserError",
+        userMessage:
+          "the factory API rejected the request: set FACTORY_API_TOKEN to a valid API token",
+      });
     }),
   );
 });

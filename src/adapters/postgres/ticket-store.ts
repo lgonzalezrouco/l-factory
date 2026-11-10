@@ -9,6 +9,7 @@ import {
   TicketStore,
   TicketStoreUnavailable,
 } from "../../application/ticket-store.js";
+import type { OrgId } from "../../application/tenancy.js";
 import type { TicketState } from "../../domain/ticket/ticket.js";
 
 const initialState: TicketState = { _tag: "new" };
@@ -31,35 +32,49 @@ export const TicketStorePostgres = Layer.effect(TicketStore)(
   Effect.gen(function* () {
     const sql = yield* PgClient.PgClient;
     const columns = sql.literal(`id, title, body, state, version, created_at AS "createdAt"`);
+    const inOrg = <A>(org: OrgId, statement: Effect.Effect<A, SqlError.SqlError>) =>
+      sql`SELECT set_config('app.org_id', ${org}, true)`.pipe(
+        Effect.andThen(statement),
+        sql.withTransaction,
+        unavailable,
+      );
 
     return TicketStore.of({
-      create: ({ title, body }) =>
-        sql`
-          INSERT INTO tickets (title, body, state, version)
-          VALUES (${title}, ${body}, ${sql.json(initialState)}, 1)
-          RETURNING ${columns}
-        `.pipe(
-          unavailable,
+      create: (org, { title, body }) =>
+        inOrg(
+          org,
+          sql`
+            INSERT INTO tickets (org_id, project_id, title, body, state, version)
+            VALUES (
+              ${org},
+              (SELECT id FROM projects ORDER BY created_at, id LIMIT 1),
+              ${title},
+              ${body},
+              ${sql.json(initialState)},
+              1
+            )
+            RETURNING ${columns}
+          `,
+        ).pipe(
           Effect.flatMap(decodeTicket),
           Effect.map(([ticket]) => ticket),
         ),
-      list: sql`SELECT ${columns} FROM tickets ORDER BY created_at, id`.pipe(
-        unavailable,
-        Effect.flatMap(decodeTickets),
-      ),
-      get: (id) =>
-        sql`SELECT ${columns} FROM tickets WHERE id = ${id}`.pipe(
-          unavailable,
+      list: (org) =>
+        inOrg(org, sql`SELECT ${columns} FROM tickets ORDER BY created_at, id`).pipe(
+          Effect.flatMap(decodeTickets),
+        ),
+      get: (org, id) =>
+        inOrg(org, sql`SELECT ${columns} FROM tickets WHERE id = ${id}`).pipe(
           Effect.flatMap(decodeTickets),
           Effect.flatMap((tickets) =>
             Effect.fromOption(Array.head(tickets), () => new TicketNotFound({ id })),
           ),
         ),
-      history: (id) =>
-        sql`SELECT seq, event, at FROM ticket_events WHERE ticket_id = ${id} ORDER BY seq`.pipe(
-          unavailable,
-          Effect.flatMap(decodeHistory),
-        ),
+      history: (org, id) =>
+        inOrg(
+          org,
+          sql`SELECT seq, event, at FROM ticket_events WHERE ticket_id = ${id} ORDER BY seq`,
+        ).pipe(Effect.flatMap(decodeHistory)),
     });
   }),
 );
