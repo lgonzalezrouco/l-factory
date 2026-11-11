@@ -3,6 +3,7 @@ import {
   WorkflowExecutionAlreadyStartedError,
   WorkflowIdConflictPolicy,
   WorkflowIdReusePolicy,
+  WorkflowNotFoundError,
 } from "@temporalio/common";
 import { Effect, Layer } from "effect";
 import { TicketRuns, TicketRunsUnavailable } from "../../application/ticket-runs.js";
@@ -12,6 +13,10 @@ const unavailable = (cause: unknown) => new TicketRunsUnavailable({ cause });
 
 const ignoreAlreadyStarted = (error: unknown): void => {
   if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+};
+
+const ignoreNotFound = (error: unknown): void => {
+  if (!(error instanceof WorkflowNotFoundError)) throw error;
 };
 
 export const TicketRunsTemporal = Layer.effect(TicketRuns)(
@@ -36,6 +41,15 @@ export const TicketRunsTemporal = Layer.effect(TicketRuns)(
                 workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
               })
               .then(() => undefined, ignoreAlreadyStarted),
+          catch: unavailable,
+        }),
+      cancel: (ticketId) =>
+        Effect.tryPromise({
+          try: () =>
+            client.workflow
+              .getHandle(ticketRunWorkflowId(ticketId))
+              .cancel()
+              .then(() => undefined, ignoreNotFound),
           catch: unavailable,
         }),
     });

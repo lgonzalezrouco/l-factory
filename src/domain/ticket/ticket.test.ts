@@ -50,21 +50,24 @@ const eventsFor = (stage: RunStage) =>
     HumanAnswered: { _tag: "HumanAnswered" },
     RunFailed: { _tag: "RunFailed", stage, reason: "retries-exhausted" },
     PrMerged: { _tag: "PrMerged" },
+    Paused: { _tag: "Paused" },
+    Killed: { _tag: "Killed" },
   }) as const satisfies { readonly [E in EventTag]: TicketEvent };
 
 const x = "InvalidTransition";
+const killed = { _tag: "failed", reason: "killed" } as const;
 
 // oxfmt-ignore
 const approved: { readonly [S in Status]: { readonly [E in EventTag]: Outcome } } = {
-  new:                { TriageStarted: { _tag: "triage" }, StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: x },
-  triage:             { TriageStarted: x,                  StepSucceeded: { _tag: "spec" },     NeedsHuman: { _tag: "waiting-on-human", asker: "triage" },   HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x },
-  spec:               { TriageStarted: x,                  StepSucceeded: { _tag: "building" }, NeedsHuman: { _tag: "waiting-on-human", asker: "spec" },     HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x },
-  building:           { TriageStarted: x,                  StepSucceeded: { _tag: "review" },   NeedsHuman: { _tag: "waiting-on-human", asker: "building" }, HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x },
-  review:             { TriageStarted: x,                  StepSucceeded: { _tag: "ready" },    NeedsHuman: { _tag: "waiting-on-human", asker: "review" },   HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x },
-  "waiting-on-human": { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: { _tag: "building" }, RunFailed: x,                                               PrMerged: x },
-  ready:              { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: { _tag: "merged" } },
-  merged:             { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: x },
-  failed:             { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: x },
+  new:                { TriageStarted: { _tag: "triage" }, StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: x,                  Paused: x,                                               Killed: killed },
+  triage:             { TriageStarted: x,                  StepSucceeded: { _tag: "spec" },     NeedsHuman: { _tag: "waiting-on-human", asker: "triage" },   HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x,                  Paused: { _tag: "waiting-on-human", asker: "triage" },   Killed: killed },
+  spec:               { TriageStarted: x,                  StepSucceeded: { _tag: "building" }, NeedsHuman: { _tag: "waiting-on-human", asker: "spec" },     HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x,                  Paused: { _tag: "waiting-on-human", asker: "spec" },     Killed: killed },
+  building:           { TriageStarted: x,                  StepSucceeded: { _tag: "review" },   NeedsHuman: { _tag: "waiting-on-human", asker: "building" }, HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x,                  Paused: { _tag: "waiting-on-human", asker: "building" }, Killed: killed },
+  review:             { TriageStarted: x,                  StepSucceeded: { _tag: "ready" },    NeedsHuman: { _tag: "waiting-on-human", asker: "review" },   HumanAnswered: x,                    RunFailed: { _tag: "failed", reason: "retries-exhausted" }, PrMerged: x,                  Paused: { _tag: "waiting-on-human", asker: "review" },   Killed: killed },
+  "waiting-on-human": { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: { _tag: "building" }, RunFailed: x,                                               PrMerged: x,                  Paused: x,                                               Killed: killed },
+  ready:              { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: { _tag: "merged" }, Paused: x,                                               Killed: killed },
+  merged:             { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: x,                  Paused: x,                                               Killed: x },
+  failed:             { TriageStarted: x,                  StepSucceeded: x,                    NeedsHuman: x,                                               HumanAnswered: x,                    RunFailed: x,                                               PrMerged: x,                  Paused: x,                                               Killed: x },
 };
 
 const cells = (Object.keys(approved) as Array<Status>).flatMap((status) =>

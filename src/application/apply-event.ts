@@ -6,17 +6,23 @@ import {
   transition,
   type RunStage,
   type TicketEvent,
+  type TransitionRejected,
 } from "../domain/ticket/ticket.js";
+import type { OrgId } from "./tenancy.js";
 import { StoredTicketUndecodable, TicketNotFound, type TicketId } from "./ticket-store.js";
 
 export type RunPosition =
   | { readonly running: true; readonly stage: RunStage }
   | { readonly running: false };
 
-const positionOf = (state: TicketState): RunPosition =>
+export const positionOf = (state: TicketState): RunPosition =>
   isRunning(state) ? { running: true, stage: state._tag } : { running: false };
 
-export type ApplyEventError = TicketNotFound | StoredTicketUndecodable | SqlError.SqlError;
+export type ApplyEventError =
+  | TicketNotFound
+  | StoredTicketUndecodable
+  | TransitionRejected
+  | SqlError.SqlError;
 
 const LockedTicket = Schema.Struct({
   state: TicketState,
@@ -43,7 +49,7 @@ export const applyEvent = (
           Effect.mapError((cause) => new StoredTicketUndecodable({ cause })),
         );
         const next = transition(ticket.state, event, "released");
-        if (Result.isFailure(next)) return positionOf(ticket.state);
+        if (Result.isFailure(next)) return yield* next.failure;
         yield* sql`
           UPDATE tickets SET state = ${JSON.stringify(next.success)}::jsonb, version = version + 1
           WHERE id = ${ticketId}
@@ -56,5 +62,19 @@ export const applyEvent = (
         `;
         return positionOf(next.success);
       }),
+    );
+  });
+
+export const applyEventInOrg = (
+  org: OrgId,
+  ticketId: TicketId,
+  event: TicketEvent,
+): Effect.Effect<RunPosition, ApplyEventError, SqlClient.SqlClient> =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    return yield* sql.withTransaction(
+      sql`SELECT set_config('app.org_id', ${org}, true)`.pipe(
+        Effect.andThen(applyEvent(ticketId, event)),
+      ),
     );
   });

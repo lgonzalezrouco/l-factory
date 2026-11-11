@@ -102,29 +102,6 @@ const printTicket = (id: TicketId) =>
     for (const line of formatHistory(historyRows(ticket, history))) yield* Console.log(line);
   });
 
-const approveTicket = (id: TicketId) =>
-  Effect.gen(function* () {
-    const client = yield* FactoryClient;
-    const ticket = yield* client.tickets.approve({ params: { id } }).pipe(
-      Effect.catchTags({
-        NotFound: (cause) =>
-          Effect.fail(new CliError.UserError({ cause, userMessage: `no ticket ${id}` })),
-        Conflict: (cause) =>
-          client.tickets.get({ params: { id } }).pipe(
-            Effect.flatMap(({ state }) =>
-              Effect.fail(
-                new CliError.UserError({
-                  cause,
-                  userMessage: `ticket ${id} is ${formatState(state)}, which has nothing to approve`,
-                }),
-              ),
-            ),
-          ),
-      }),
-    );
-    yield* Console.log(formatTicket(ticket));
-  });
-
 const create = Command.make(
   "create",
   {
@@ -152,16 +129,49 @@ const status = Command.make(
     ),
 );
 
-const approve = Command.make(
-  "approve",
-  { id: Argument.String("id").pipe(Argument.withSchema(TicketId)) },
-  ({ id }) =>
-    approveTicket(id).pipe(
-      Effect.catchReason("HttpClientError", "TransportError", unreachable),
-      Effect.catchTag("Unauthorized", rejected),
-    ),
+const ticketCommand = (
+  action: "approve" | "pause" | "kill",
+  refusal: string,
+  print: (ticket: Ticket) => string,
+) =>
+  Command.make(
+    action,
+    { id: Argument.String("id").pipe(Argument.withSchema(TicketId)) },
+    ({ id }) =>
+      Effect.gen(function* () {
+        const client = yield* FactoryClient;
+        const ticket = yield* client.tickets[action]({ params: { id } }).pipe(
+          Effect.catchTags({
+            NotFound: (cause) =>
+              Effect.fail(new CliError.UserError({ cause, userMessage: `no ticket ${id}` })),
+            Conflict: (cause) =>
+              client.tickets.get({ params: { id } }).pipe(
+                Effect.flatMap(({ state }) =>
+                  Effect.fail(
+                    new CliError.UserError({
+                      cause,
+                      userMessage: `ticket ${id} is ${formatState(state)}, ${refusal}`,
+                    }),
+                  ),
+                ),
+              ),
+          }),
+        );
+        yield* Console.log(print(ticket));
+      }).pipe(
+        Effect.catchReason("HttpClientError", "TransportError", unreachable),
+        Effect.catchTag("Unauthorized", rejected),
+      ),
+  );
+
+const approve = ticketCommand("approve", "which has nothing to approve", formatTicket);
+
+const pause = ticketCommand("pause", "which cannot be paused", ({ state }) =>
+  state._tag === "waiting-on-human" ? `paused at ${state.asker}` : formatState(state),
 );
 
+const kill = ticketCommand("kill", "which cannot be killed", () => "killed");
+
 export const factory = Command.make("factory").pipe(
-  Command.withSubcommands([create, status, approve]),
+  Command.withSubcommands([create, status, approve, pause, kill]),
 );

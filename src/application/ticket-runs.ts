@@ -7,5 +7,8 @@ export class TicketRunsUnavailable extends Data.TaggedError("TicketRunsUnavailab
 
 export class TicketRuns extends Context.Service<
   TicketRuns,
-  { readonly start: (ticketId: TicketId) => Effect.Effect<void, TicketRunsUnavailable> }
+  {
+    readonly start: (ticketId: TicketId) => Effect.Effect<void, TicketRunsUnavailable>;
+    readonly cancel: (ticketId: TicketId) => Effect.Effect<void, TicketRunsUnavailable>;
+  }
 >()("l-factory/TicketRuns") {}

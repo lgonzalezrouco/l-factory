@@ -43,6 +43,16 @@ export const FactoryApi = HttpApi.make("factory")
           success: Ticket,
           error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent],
         }),
+        HttpApiEndpoint.post("pause", "/tickets/:id/pause", {
+          params: { id: TicketId },
+          success: Ticket,
+          error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent],
+        }),
+        HttpApiEndpoint.post("kill", "/tickets/:id/kill", {
+          params: { id: TicketId },
+          success: Ticket,
+          error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent],
+        }),
       )
       .middleware(Authorization),
   )
