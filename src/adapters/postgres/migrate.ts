@@ -3,6 +3,7 @@ import tickets from "./migrations/0001_tickets.js";
 import tenancy from "./migrations/0002_tenancy.js";
 import approve from "./migrations/0003_approve.js";
 import notifications from "./migrations/0004_notifications.js";
+import killSwitch from "./migrations/0005_kill_switch.js";
 
 export const migrate = Migrator.make({})({
   loader: Migrator.fromRecord({
@@ -10,5 +11,6 @@ export const migrate = Migrator.make({})({
     "0002_tenancy": tenancy,
     "0003_approve": approve,
     "0004_notifications": notifications,
+    "0005_kill_switch": killSwitch,
   }),
 });

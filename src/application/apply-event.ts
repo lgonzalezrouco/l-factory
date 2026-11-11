@@ -30,6 +30,8 @@ const LockedTicket = Schema.Struct({
   project_id: Schema.String,
 });
 
+const KillSwitchRow = Schema.Tuple([Schema.Struct({ engaged: Schema.Boolean })]);
+
 export const applyEvent = (
   ticketId: TicketId,
   event: TicketEvent,
@@ -48,7 +50,10 @@ export const applyEvent = (
         const ticket = yield* Schema.decodeUnknownEffect(LockedTicket)(row).pipe(
           Effect.mapError((cause) => new StoredTicketUndecodable({ cause })),
         );
-        const next = transition(ticket.state, event, "released");
+        const [{ engaged }] = yield* Schema.decodeUnknownEffect(KillSwitchRow)(
+          yield* sql`SELECT engaged FROM kill_switch FOR SHARE`,
+        ).pipe(Effect.orDie);
+        const next = transition(ticket.state, event, engaged ? "engaged" : "released");
         if (Result.isFailure(next)) return yield* next.failure;
         yield* sql`
           UPDATE tickets SET state = ${JSON.stringify(next.success)}::jsonb, version = version + 1
