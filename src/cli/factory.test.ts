@@ -117,6 +117,44 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
     }),
   );
 
+  it.effect("pauses a running ticket at its stage and approve resumes it", () =>
+    Effect.gen(function* () {
+      const [created] = yield* run("create", "--title", "pause and resume");
+      const id = String(created).slice(0, 36);
+      yield* run("approve", id);
+
+      expect(yield* run("pause", id)).toEqual(["paused at triage"]);
+      expect(yield* run("approve", id)).toEqual([
+        `${id}  triage                                pause and resume`,
+      ]);
+    }),
+  );
+
+  it.effect("names the state of a ticket that cannot be paused", () =>
+    Effect.gen(function* () {
+      const [created] = yield* run("create", "--title", "never started");
+      const id = String(created).slice(0, 36);
+
+      expect(yield* Effect.flip(run("pause", id))).toMatchObject({
+        _tag: "UserError",
+        userMessage: `ticket ${id} is new, which cannot be paused`,
+      });
+    }),
+  );
+
+  it.effect("kills a ticket, which then cannot be killed again", () =>
+    Effect.gen(function* () {
+      const [created] = yield* run("create", "--title", "kill me");
+      const id = String(created).slice(0, 36);
+
+      expect(yield* run("kill", id)).toEqual(["killed"]);
+      expect(yield* Effect.flip(run("kill", id))).toMatchObject({
+        _tag: "UserError",
+        userMessage: `ticket ${id} is failed (killed), which cannot be killed`,
+      });
+    }),
+  );
+
   it.effect("prints an unread notification above the queue once", () =>
     Effect.gen(function* () {
       const [created] = yield* run("create", "--title", "crashes in building");
