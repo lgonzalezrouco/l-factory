@@ -26,7 +26,7 @@ export default Effect.gen(function* () {
   yield* sql`REVOKE ALL ON FUNCTION authenticate_api_token(text) FROM PUBLIC`;
   yield* sql`GRANT EXECUTE ON FUNCTION authenticate_api_token(text) TO factory_api`;
   yield* sql`
-    CREATE FUNCTION running_tickets()
+    CREATE FUNCTION running_tickets_in_every_org()
       RETURNS TABLE (id uuid, org_id uuid)
       LANGUAGE sql STABLE SECURITY DEFINER
       SET search_path = pg_catalog, pg_temp
@@ -35,6 +35,6 @@ export default Effect.gen(function* () {
       WHERE t.state->>'_tag' IN ('triage', 'spec', 'building', 'review')
     $$
   `;
-  yield* sql`REVOKE ALL ON FUNCTION running_tickets() FROM PUBLIC`;
-  yield* sql`GRANT EXECUTE ON FUNCTION running_tickets() TO factory_api`;
+  yield* sql`REVOKE ALL ON FUNCTION running_tickets_in_every_org() FROM PUBLIC`;
+  yield* sql`GRANT EXECUTE ON FUNCTION running_tickets_in_every_org() TO factory_api`;
 });

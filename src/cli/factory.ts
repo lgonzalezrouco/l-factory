@@ -129,13 +129,17 @@ const status = Command.make(
     ),
 );
 
+type TicketActionName = "approve" | "pause" | "kill";
+
 type TicketAction = Effect.Effect<
   Ticket,
-  Effect.Error<ReturnType<FactoryClient["Service"]["tickets"]["approve"]>>
+  {
+    [A in TicketActionName]: Effect.Error<ReturnType<FactoryClient["Service"]["tickets"][A]>>;
+  }[TicketActionName]
 >;
 
 const ticketCommand = (
-  action: "approve" | "pause" | "kill",
+  action: TicketActionName,
   refusal: string,
   print: (ticket: Ticket) => string,
 ) =>

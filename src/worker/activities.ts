@@ -19,7 +19,7 @@ type WorkerServices = SqlClient.SqlClient | Agent | Notifier;
 const followStoredPosition = (refused: InvalidTransition) =>
   Effect.succeed(positionOf(refused.from));
 
-const stopped: RunPosition = { running: false };
+const stoppedByKillSwitch: RunPosition = { running: false };
 
 const TicketBody = Schema.Tuple([
   Schema.Struct({ body: Schema.String, askedBefore: Schema.Boolean }),
@@ -46,7 +46,7 @@ export const makeActivities = (
           Effect.flatMap(([id, decoded]) => applyEvent(id, decoded)),
           Effect.catchTags({
             InvalidTransition: followStoredPosition,
-            KillSwitchEngaged: () => Effect.succeed(stopped),
+            KillSwitchEngaged: () => Effect.succeed(stoppedByKillSwitch),
           }),
         ),
       ),
