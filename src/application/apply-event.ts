@@ -8,6 +8,7 @@ import {
   type TicketEvent,
   type TransitionRejected,
 } from "../domain/ticket/ticket.js";
+import type { OrgId } from "./tenancy.js";
 import { StoredTicketUndecodable, TicketNotFound, type TicketId } from "./ticket-store.js";
 
 export type RunPosition =
@@ -61,5 +62,19 @@ export const applyEvent = (
         `;
         return positionOf(next.success);
       }),
+    );
+  });
+
+export const applyEventInOrg = (
+  org: OrgId,
+  ticketId: TicketId,
+  event: TicketEvent,
+): Effect.Effect<RunPosition, ApplyEventError, SqlClient.SqlClient> =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    return yield* sql.withTransaction(
+      sql`SELECT set_config('app.org_id', ${org}, true)`.pipe(
+        Effect.andThen(applyEvent(ticketId, event)),
+      ),
     );
   });

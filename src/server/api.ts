@@ -2,11 +2,13 @@ import { Effect, Layer } from "effect";
 import { HttpApiBuilder, HttpApiError, HttpApiMiddleware } from "effect/http-api";
 import { SqlClient } from "effect/sql";
 import { FactoryApi } from "../api/definition.js";
+import { applyEventInOrg } from "../application/apply-event.js";
 import { approve } from "../application/approve.js";
 import { Notifier } from "../application/notifier.js";
 import { CurrentPrincipal } from "../application/tenancy.js";
 import { TicketRuns } from "../application/ticket-runs.js";
-import { TicketStore } from "../application/ticket-store.js";
+import { TicketStore, type TicketId } from "../application/ticket-store.js";
+import type { TicketEvent } from "../domain/ticket/ticket.js";
 import { AuthorizationLive } from "./auth.js";
 
 const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =>
@@ -14,6 +16,21 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
     const store = yield* TicketStore;
     const runs = yield* TicketRuns;
     const sql = yield* SqlClient.SqlClient;
+    const stopRun = (id: TicketId, event: TicketEvent) =>
+      CurrentPrincipal.use(({ orgId }) =>
+        Effect.gen(function* () {
+          yield* applyEventInOrg(orgId, id, event);
+          yield* runs.cancel(id);
+          return yield* store.get(orgId, id);
+        }),
+      ).pipe(
+        Effect.provideService(SqlClient.SqlClient, sql),
+        Effect.catchTags({
+          TicketNotFound: () => Effect.fail(new HttpApiError.NotFound()),
+          InvalidTransition: () => Effect.fail(new HttpApiError.Conflict()),
+        }),
+        Effect.orDie,
+      );
     return handlers
       .handle("create", ({ payload }) =>
         CurrentPrincipal.use(({ orgId }) =>
@@ -50,7 +67,9 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
           }),
           Effect.orDie,
         ),
-      );
+      )
+      .handle("pause", ({ params }) => stopRun(params.id, { _tag: "Paused" }))
+      .handle("kill", ({ params }) => stopRun(params.id, { _tag: "Killed" }));
   }),
 );
 

@@ -16,8 +16,12 @@ import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { ApiLive } from "./api.js";
 
 const started: Array<TicketId> = [];
+const cancelled: Array<TicketId> = [];
 const RecordingTicketRuns = Layer.succeed(TicketRuns)(
-  TicketRuns.of({ start: (id) => Effect.sync(() => started.push(id)) }),
+  TicketRuns.of({
+    start: (id) => Effect.sync(() => started.push(id)),
+    cancel: (id) => Effect.sync(() => cancelled.push(id)),
+  }),
 );
 
 const Server = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
@@ -36,11 +40,17 @@ const postTicket = (body: unknown, token?: Redacted.Redacted<string>) =>
     HttpClient.execute,
   );
 
-const approveTicket = (id: string, token: Redacted.Redacted<string>) =>
-  HttpClientRequest.post(`/tickets/${id}/approve`).pipe(
+const postAction = (action: string) => (id: string, token: Redacted.Redacted<string>) =>
+  HttpClientRequest.post(`/tickets/${id}/${action}`).pipe(
     HttpClientRequest.bearerToken(token),
     HttpClient.execute,
   );
+const approveTicket = postAction("approve");
+const pauseTicket = postAction("pause");
+const killTicket = postAction("kill");
+
+const createTicket = (title: string, token: Redacted.Redacted<string>) =>
+  postTicket({ title }, token).pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(Ticket)));
 
 const adminToken = TestOrgs.use((orgs) => Effect.succeed(orgs.default.token));
 
@@ -93,8 +103,7 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
   it.effect("approving a new ticket starts its run in triage", () =>
     Effect.gen(function* () {
       const token = yield* adminToken;
-      const created = yield* postTicket({ title: "approve me" }, token);
-      const { id } = yield* HttpClientResponse.schemaBodyJson(Ticket)(created);
+      const { id } = yield* createTicket("approve me", token);
       started.length = 0;
 
       const response = yield* approveTicket(id, token);
@@ -108,8 +117,7 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
   it.effect("refuses a second approval of a ticket already in triage", () =>
     Effect.gen(function* () {
       const token = yield* adminToken;
-      const created = yield* postTicket({ title: "approve twice" }, token);
-      const { id } = yield* HttpClientResponse.schemaBodyJson(Ticket)(created);
+      const { id } = yield* createTicket("approve twice", token);
       yield* approveTicket(id, token);
 
       const response = yield* approveTicket(id, token);
@@ -124,6 +132,62 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
         "00000000-0000-4000-8000-000000000000",
         yield* adminToken,
       );
+
+      expect(response.status).toBe(404);
+    }),
+  );
+
+  it.effect("pausing a running ticket parks it waiting on a human and cancels its run", () =>
+    Effect.gen(function* () {
+      const token = yield* adminToken;
+      const { id } = yield* createTicket("pause me", token);
+      yield* approveTicket(id, token);
+      cancelled.length = 0;
+
+      const response = yield* pauseTicket(id, token);
+
+      expect(response.status).toBe(200);
+      expect(yield* response.json).toMatchObject({
+        id,
+        state: { _tag: "waiting-on-human", asker: "triage" },
+      });
+      expect(cancelled).toEqual([id]);
+    }),
+  );
+
+  it.effect("refuses to pause a ticket that is not running and leaves its run alone", () =>
+    Effect.gen(function* () {
+      const token = yield* adminToken;
+      const { id } = yield* createTicket("not running", token);
+      cancelled.length = 0;
+
+      const response = yield* pauseTicket(id, token);
+
+      expect(response.status).toBe(409);
+      expect(cancelled).toEqual([]);
+    }),
+  );
+
+  it.effect("killing a ticket ends it as failed and cancels its run", () =>
+    Effect.gen(function* () {
+      const token = yield* adminToken;
+      const { id } = yield* createTicket("kill me", token);
+      cancelled.length = 0;
+
+      const response = yield* killTicket(id, token);
+
+      expect(response.status).toBe(200);
+      expect(yield* response.json).toMatchObject({
+        id,
+        state: { _tag: "failed", reason: "killed" },
+      });
+      expect(cancelled).toEqual([id]);
+    }),
+  );
+
+  it.effect("reports a kill of an unknown ticket as missing", () =>
+    Effect.gen(function* () {
+      const response = yield* killTicket("00000000-0000-4000-8000-000000000000", yield* adminToken);
 
       expect(response.status).toBe(404);
     }),

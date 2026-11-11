@@ -21,7 +21,9 @@ import { ApiLive } from "../server/api.js";
 import { FactoryClient } from "./client.js";
 import { factory } from "./factory.js";
 
-const NoTicketRuns = Layer.succeed(TicketRuns)(TicketRuns.of({ start: () => Effect.void }));
+const NoTicketRuns = Layer.succeed(TicketRuns)(
+  TicketRuns.of({ start: () => Effect.void, cancel: () => Effect.void }),
+);
 
 const Api = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
   Layer.provide(
