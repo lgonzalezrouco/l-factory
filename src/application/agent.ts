@@ -9,8 +9,7 @@ export interface StepRequest {
   readonly ticketId: TicketId;
   readonly body: string;
   readonly stage: RunStage;
-  /** A human already answered a question this stage asked on this ticket. */
-  readonly answered: boolean;
+  readonly askedBefore: boolean;
 }
 
 export class AgentError extends Data.TaggedError("AgentError")<{

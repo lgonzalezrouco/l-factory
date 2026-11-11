@@ -4,15 +4,15 @@ import { decodeFakeScript, type FakeDirective } from "./script.js";
 
 const outcomeOf: Record<
   FakeDirective,
-  { readonly asked: StepOutcome; readonly answered: StepOutcome }
+  { readonly firstTime: StepOutcome; readonly askedBefore: StepOutcome }
 > = {
-  succeeded: { asked: "succeeded", answered: "succeeded" },
-  "needs-human": { asked: "needs-input", answered: "succeeded" },
+  succeeded: { firstTime: "succeeded", askedBefore: "succeeded" },
+  "needs-human": { firstTime: "needs-input", askedBefore: "succeeded" },
 };
 
 export const FakeAgentLive = Layer.succeed(Agent)(
   Agent.of({
-    runStep: ({ body, stage, answered }, heartbeat) =>
+    runStep: ({ body, stage, askedBefore }, heartbeat) =>
       decodeFakeScript(body).pipe(
         Effect.mapError((cause) => new AgentError({ cause })),
         Effect.flatMap((script) =>
@@ -23,7 +23,9 @@ export const FakeAgentLive = Layer.succeed(Agent)(
               duration: "2 seconds",
               orElse: () =>
                 Effect.succeed(
-                  outcomeOf[script[stage] ?? "succeeded"][answered ? "answered" : "asked"],
+                  outcomeOf[script[stage] ?? "succeeded"][
+                    askedBefore ? "askedBefore" : "firstTime"
+                  ],
                 ),
             }),
           ),

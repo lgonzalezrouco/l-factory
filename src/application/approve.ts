@@ -1,7 +1,6 @@
 import { Array, Data, Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
-import type { Status, TicketEvent } from "../domain/ticket/ticket.js";
-import { TicketState } from "../domain/ticket/ticket.js";
+import { TicketState, type Status, type TicketEvent } from "../domain/ticket/ticket.js";
 import { applyEvent, type ApplyEventError, type RunPosition } from "./apply-event.js";
 import type { OrgId } from "./tenancy.js";
 import { StoredTicketUndecodable, TicketNotFound, type TicketId } from "./ticket-store.js";

@@ -1,7 +1,7 @@
 import { NodeHttpServer } from "@effect/platform-node";
 import { expect, layer } from "@effect/vitest";
 import { Effect, Layer, Redacted } from "effect";
-import { HttpClient, HttpClientRequest, HttpRouter } from "effect/http";
+import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter } from "effect/http";
 import { ApiTokensPostgres } from "../adapters/postgres/api-tokens.js";
 import {
   TestDatabaseApi,
@@ -10,7 +10,7 @@ import {
   TestOrgsLive,
 } from "../adapters/postgres/test-database.js";
 import { TicketRuns } from "../application/ticket-runs.js";
-import type { TicketId } from "../application/ticket-store.js";
+import { Ticket, type TicketId } from "../application/ticket-store.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { ApiLive } from "./api.js";
 
@@ -91,7 +91,7 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
     Effect.gen(function* () {
       const token = yield* adminToken;
       const created = yield* postTicket({ title: "approve me" }, token);
-      const { id } = (yield* created.json) as { id: TicketId };
+      const { id } = yield* HttpClientResponse.schemaBodyJson(Ticket)(created);
       started.length = 0;
 
       const response = yield* approveTicket(id, token);
@@ -106,7 +106,7 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
     Effect.gen(function* () {
       const token = yield* adminToken;
       const created = yield* postTicket({ title: "approve twice" }, token);
-      const { id } = (yield* created.json) as { id: TicketId };
+      const { id } = yield* HttpClientResponse.schemaBodyJson(Ticket)(created);
       yield* approveTicket(id, token);
 
       const response = yield* approveTicket(id, token);

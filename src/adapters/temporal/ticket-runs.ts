@@ -10,6 +10,10 @@ import { temporalAddress, ticketRunsTaskQueue, ticketRunWorkflowId } from "./nam
 
 const unavailable = (cause: unknown) => new TicketRunsUnavailable({ cause });
 
+const ignoreAlreadyStarted = (error: unknown): void => {
+  if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+};
+
 export const TicketRunsTemporal = Layer.effect(TicketRuns)(
   Effect.gen(function* () {
     const address = yield* temporalAddress;
@@ -31,14 +35,7 @@ export const TicketRunsTemporal = Layer.effect(TicketRuns)(
                 workflowIdReusePolicy: WorkflowIdReusePolicy.ALLOW_DUPLICATE,
                 workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
               })
-              .then(
-                () => undefined,
-                (error: unknown) => {
-                  // The execution already running for this ticket drives it on from its current state.
-                  if (error instanceof WorkflowExecutionAlreadyStartedError) return undefined;
-                  throw error;
-                },
-              ),
+              .then(() => undefined, ignoreAlreadyStarted),
           catch: unavailable,
         }),
     });
