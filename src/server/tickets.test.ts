@@ -1,4 +1,5 @@
 import { NodeHttpServer } from "@effect/platform-node";
+import { PgClient } from "@effect/sql-pg";
 import { expect, layer } from "@effect/vitest";
 import { Effect, Layer, Redacted } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter } from "effect/http";
@@ -33,7 +34,8 @@ const Server = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger
     Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, NotifierPostgres, RecordingTicketRuns),
   ),
   Layer.provide(TestDatabaseApi),
-  Layer.provideMerge(TestOrgsLive.pipe(Layer.provide(TestDatabaseOwner))),
+  Layer.provideMerge(TestOrgsLive),
+  Layer.provideMerge(TestDatabaseOwner),
   Layer.provideMerge(NodeHttpServer.layerTest),
 );
 
@@ -194,6 +196,31 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
       const response = yield* killTicket("00000000-0000-4000-8000-000000000000", yield* adminToken);
 
       expect(response.status).toBe(404);
+    }),
+  );
+
+  it.effect("refuses the kill switch to a member who is not an org admin", () =>
+    Effect.gen(function* () {
+      const sql = yield* PgClient.PgClient;
+      const { orgId } = (yield* TestOrgs).default;
+      const token = "fct_dev-member-token";
+      yield* sql`
+        WITH dev AS (INSERT INTO users (login) VALUES ('dev') RETURNING id),
+        member AS (
+          INSERT INTO memberships (user_id, org_id, role) SELECT id, ${orgId}, 'dev' FROM dev
+          RETURNING user_id
+        )
+        INSERT INTO api_tokens (token_hash, user_id, org_id)
+        SELECT encode(sha256(convert_to(${token}, 'UTF8')), 'hex'), user_id, ${orgId} FROM member
+      `;
+
+      const response = yield* HttpClientRequest.put("/kill-switch").pipe(
+        HttpClientRequest.bodyJsonUnsafe({ engaged: true }),
+        HttpClientRequest.bearerToken(token),
+        HttpClient.execute,
+      );
+
+      expect(response.status).toBe(403);
     }),
   );
 

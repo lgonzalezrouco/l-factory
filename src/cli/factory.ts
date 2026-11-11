@@ -129,8 +129,17 @@ const status = Command.make(
     ),
 );
 
+type TicketActionName = "approve" | "pause" | "kill";
+
+type TicketAction = Effect.Effect<
+  Ticket,
+  {
+    [A in TicketActionName]: Effect.Error<ReturnType<FactoryClient["Service"]["tickets"][A]>>;
+  }[TicketActionName]
+>;
+
 const ticketCommand = (
-  action: "approve" | "pause" | "kill",
+  action: TicketActionName,
   refusal: string,
   print: (ticket: Ticket) => string,
 ) =>
@@ -140,8 +149,17 @@ const ticketCommand = (
     ({ id }) =>
       Effect.gen(function* () {
         const client = yield* FactoryClient;
-        const ticket = yield* client.tickets[action]({ params: { id } }).pipe(
+        const request: TicketAction = client.tickets[action]({ params: { id } });
+        const ticket = yield* request.pipe(
           Effect.catchTags({
+            KillSwitchOn: (cause) =>
+              Effect.fail(
+                new CliError.UserError({
+                  cause,
+                  userMessage:
+                    "the kill switch is engaged, release it with factory kill-switch off",
+                }),
+              ),
             NotFound: (cause) =>
               Effect.fail(new CliError.UserError({ cause, userMessage: `no ticket ${id}` })),
             Conflict: (cause) =>
@@ -172,6 +190,37 @@ const pause = ticketCommand("pause", "which cannot be paused", ({ state }) =>
 
 const kill = ticketCommand("kill", "which cannot be killed", () => "killed");
 
+const killSwitch = Command.make(
+  "kill-switch",
+  {
+    engaged: Argument.ChoiceWithValue("state", [
+      ["on", true],
+      ["off", false],
+    ]),
+  },
+  ({ engaged }) =>
+    Effect.gen(function* () {
+      const client = yield* FactoryClient;
+      const { paused } = yield* client.killSwitch.set({ payload: { engaged } });
+      yield* Console.log(
+        engaged
+          ? `kill switch engaged, paused ${paused} ${paused === 1 ? "ticket" : "tickets"}`
+          : "kill switch released",
+      );
+    }).pipe(
+      Effect.catchTag("Forbidden", (cause) =>
+        Effect.fail(
+          new CliError.UserError({
+            cause,
+            userMessage: "only an org admin can engage or release the kill switch",
+          }),
+        ),
+      ),
+      Effect.catchReason("HttpClientError", "TransportError", unreachable),
+      Effect.catchTag("Unauthorized", rejected),
+    ),
+);
+
 export const factory = Command.make("factory").pipe(
-  Command.withSubcommands([create, status, approve, pause, kill]),
+  Command.withSubcommands([create, status, approve, pause, kill, killSwitch]),
 );

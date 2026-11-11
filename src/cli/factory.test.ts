@@ -155,6 +155,31 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
     }),
   );
 
+  it.effect("kill-switch on pauses the running tickets and blocks approve until off", () =>
+    Effect.gen(function* () {
+      yield* run("kill-switch", "on");
+      yield* run("kill-switch", "off");
+      const ids = [];
+      for (const title of ["first running", "second running"]) {
+        const [created] = yield* run("create", "--title", title);
+        const id = String(created).slice(0, 36);
+        yield* run("approve", id);
+        ids.push(id);
+      }
+
+      const engaged = yield* run("kill-switch", "on");
+      const refused = yield* Effect.flip(run("approve", ids[0] ?? ""));
+      const released = yield* run("kill-switch", "off");
+
+      expect(engaged).toEqual(["kill switch engaged, paused 2 tickets"]);
+      expect(refused).toMatchObject({
+        _tag: "UserError",
+        userMessage: "the kill switch is engaged, release it with factory kill-switch off",
+      });
+      expect(released).toEqual(["kill switch released"]);
+    }),
+  );
+
   it.effect("prints an unread notification above the queue once", () =>
     Effect.gen(function* () {
       const [created] = yield* run("create", "--title", "crashes in building");

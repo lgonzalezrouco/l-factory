@@ -20,6 +20,11 @@ export class Authorization extends HttpApiMiddleware.Service<
   error: HttpApiError.UnauthorizedNoContent,
 }) {}
 
+export class KillSwitchOn extends Schema.TaggedError<
+  KillSwitchOn,
+  { readonly brand: unique symbol }
+>()("KillSwitchOn", {}, { httpApiStatus: 409 }) {}
+
 export const FactoryApi = HttpApi.make("factory")
   .add(
     HttpApiGroup.make("tickets")
@@ -41,7 +46,7 @@ export const FactoryApi = HttpApi.make("factory")
         HttpApiEndpoint.post("approve", "/tickets/:id/approve", {
           params: { id: TicketId },
           success: Ticket,
-          error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent],
+          error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent, KillSwitchOn],
         }),
         HttpApiEndpoint.post("pause", "/tickets/:id/pause", {
           params: { id: TicketId },
@@ -61,6 +66,17 @@ export const FactoryApi = HttpApi.make("factory")
       .add(
         HttpApiEndpoint.post("read", "/notifications/read", {
           success: Schema.Array(Notification),
+        }),
+      )
+      .middleware(Authorization),
+  )
+  .add(
+    HttpApiGroup.make("killSwitch")
+      .add(
+        HttpApiEndpoint.put("set", "/kill-switch", {
+          payload: Schema.Struct({ engaged: Schema.Boolean }),
+          success: Schema.Struct({ engaged: Schema.Boolean, paused: Schema.Int }),
+          error: HttpApiError.ForbiddenNoContent,
         }),
       )
       .middleware(Authorization),
