@@ -1,18 +1,28 @@
-import { Effect, Layer } from "effect";
+import { Duration, Effect, Layer } from "effect";
 import { Agent, AgentError, type StepOutcome } from "../../application/agent.js";
-import { decodeFakeScript, type FakeDirective } from "./script.js";
+import { decodeFakeScript, FakeDirective } from "./script.js";
 
 type Step = Effect.Effect<StepOutcome, AgentError>;
 
-const crashed: Step = Effect.failSync(() => new AgentError({ cause: "@fake crash" }));
+const heartbeatingFor =
+  (heartbeat: Effect.Effect<void>, duration: Duration.Input) =>
+  (then: Step): Step =>
+    heartbeat.pipe(
+      Effect.delay("500 millis"),
+      Effect.forever,
+      Effect.timeoutOrElse({ duration, orElse: () => then }),
+    );
 
-const outcomeOf: Record<FakeDirective, { readonly firstTime: Step; readonly askedBefore: Step }> = {
-  succeeded: { firstTime: Effect.succeed("succeeded"), askedBefore: Effect.succeed("succeeded") },
-  "needs-human": {
-    firstTime: Effect.succeed("needs-input"),
-    askedBefore: Effect.succeed("succeeded"),
-  },
-  crash: { firstTime: crashed, askedBefore: crashed },
+const stepOf = (heartbeat: Effect.Effect<void>, askedBefore: boolean) => {
+  const briefly = heartbeatingFor(heartbeat, "2 seconds");
+  return FakeDirective.match({
+    succeeded: () => briefly(Effect.succeed("succeeded")),
+    "needs-human": () => briefly(Effect.succeed(askedBefore ? "succeeded" : "needs-input")),
+    crash: () => briefly(Effect.fail(new AgentError({ cause: "@fake crash" }))),
+    hang: (): Step => Effect.never,
+    slow: ({ seconds }) =>
+      heartbeatingFor(heartbeat, Duration.seconds(seconds))(Effect.succeed("succeeded")),
+  });
 };
 
 export const FakeAgentLive = Layer.succeed(Agent)(
@@ -21,15 +31,7 @@ export const FakeAgentLive = Layer.succeed(Agent)(
       decodeFakeScript(body).pipe(
         Effect.mapError((cause) => new AgentError({ cause })),
         Effect.flatMap((script) =>
-          heartbeat.pipe(
-            Effect.delay("500 millis"),
-            Effect.forever,
-            Effect.timeoutOrElse({
-              duration: "2 seconds",
-              orElse: () =>
-                outcomeOf[script[stage] ?? "succeeded"][askedBefore ? "askedBefore" : "firstTime"],
-            }),
-          ),
+          stepOf(heartbeat, askedBefore)(script[stage] ?? { _tag: "succeeded" }),
         ),
       ),
   }),

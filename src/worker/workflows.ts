@@ -25,7 +25,7 @@ export async function ticketRun(ticketId: string): Promise<void> {
   // answer is replayed from history.
   const maximumAttempts = await maxAttempts();
   const { runAgentStep } = proxyActivities<TicketRunActivities>({
-    startToCloseTimeout: "5 minutes",
+    startToCloseTimeout: "10 minutes",
     heartbeatTimeout: "5 seconds",
     retry: { maximumAttempts, initialInterval: "1 second" },
   });
