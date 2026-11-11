@@ -6,7 +6,11 @@ export type OrgId = typeof OrgId.Type;
 export const UserId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("UserId"));
 export type UserId = typeof UserId.Type;
 
-export const Principal = Schema.Struct({ userId: UserId, orgId: OrgId });
+export const Principal = Schema.Struct({
+  userId: UserId,
+  orgId: OrgId,
+  role: Schema.Literals(["admin", "dev", "area-owner"]),
+});
 export type Principal = typeof Principal.Type;
 
 export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principal>()(

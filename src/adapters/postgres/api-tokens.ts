@@ -9,7 +9,7 @@ export const ApiTokensPostgres = Layer.effect(ApiTokens)(
     return ApiTokens.of({
       authenticate: (token) =>
         sql`
-          SELECT user_id AS "userId", org_id AS "orgId"
+          SELECT user_id AS "userId", org_id AS "orgId", role
           FROM authenticate_api_token(${Redacted.value(token)})
         `.pipe(
           Effect.mapError((cause) => new ApiTokensUnavailable({ cause })),
