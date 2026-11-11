@@ -19,7 +19,6 @@ type WorkerServices = SqlClient.SqlClient | Agent | Notifier;
 const followStoredPosition = (refused: InvalidTransition) =>
   Effect.succeed(positionOf(refused.from));
 
-// The run ends here and the kill switch's pause pass parks the ticket waiting on a human.
 const stopped: RunPosition = { running: false };
 
 const TicketBody = Schema.Tuple([

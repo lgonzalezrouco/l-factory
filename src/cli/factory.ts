@@ -129,7 +129,6 @@ const status = Command.make(
     ),
 );
 
-/** Approve's errors include every other action's, so one handler covers all three. */
 type TicketAction = Effect.Effect<
   Ticket,
   Effect.Error<ReturnType<FactoryClient["Service"]["tickets"]["approve"]>>

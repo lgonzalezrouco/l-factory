@@ -8,10 +8,6 @@ import { TicketId } from "./ticket-store.js";
 
 const RunningTickets = Schema.Array(Schema.Struct({ id: TicketId, org_id: OrgId }));
 
-/**
- * Pauses in separate transactions after the switch commits, so a step that commits
- * meanwhile still gets paused, and a rerun finishes a pause pass that crashed.
- */
 export const engage: Effect.Effect<
   number,
   Exclude<ApplyEventError, InvalidTransition>,

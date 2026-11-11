@@ -25,8 +25,6 @@ export default Effect.gen(function* () {
   `;
   yield* sql`REVOKE ALL ON FUNCTION authenticate_api_token(text) FROM PUBLIC`;
   yield* sql`GRANT EXECUTE ON FUNCTION authenticate_api_token(text) TO factory_api`;
-  // The switch is global but the API role sees one org's tickets, so the pause pass finds
-  // running tickets in every org through this function instead of owner credentials.
   yield* sql`
     CREATE FUNCTION running_tickets()
       RETURNS TABLE (id uuid, org_id uuid)

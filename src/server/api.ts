@@ -76,7 +76,6 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
             NoApproval: () => Effect.fail(new HttpApiError.Conflict()),
             KillSwitchEngaged: () => Effect.fail(new KillSwitchOn()),
           }),
-          // Not orDie: KillSwitchOn renders from its schema only as a failure, a defect is a 500.
           Effect.catchTag(
             [
               "StoredTicketUndecodable",
