@@ -23,8 +23,10 @@ afterAll(async () => {
   await env?.teardown();
 });
 
-const recordingActivities = (outcomes: Partial<Record<RunStage, StepOutcome>>) => {
+const recordingActivities = (outcomes: Partial<Record<RunStage, StepOutcome | "crash">>) => {
   const applied: Array<TicketEvent> = [];
+  const steps: Array<RunStage> = [];
+  const notified: Array<[RunStage, number]> = [];
   let state: TicketState = { _tag: "new" };
   const activities: TicketRunActivities = {
     applyEvent: async (_, event) => {
@@ -32,9 +34,18 @@ const recordingActivities = (outcomes: Partial<Record<RunStage, StepOutcome>>) =
       state = Result.getOrThrow(transition(state, event, "released"));
       return isRunning(state) ? { running: true, stage: state._tag } : { running: false };
     },
-    runAgentStep: async (_, stage) => outcomes[stage] ?? "succeeded",
+    runAgentStep: async (_, stage) => {
+      steps.push(stage);
+      const outcome = outcomes[stage] ?? "succeeded";
+      if (outcome === "crash") throw new Error(`${stage} crashed`);
+      return outcome;
+    },
+    maxAttempts: async () => 3,
+    notify: async (_, stage, attempts) => {
+      notified.push([stage, attempts]);
+    },
   };
-  return { activities, applied, state: () => state };
+  return { activities, applied, steps, notified, state: () => state };
 };
 
 const runTicket = async (activities: TicketRunActivities, workflowId: string) => {
@@ -80,4 +91,23 @@ it("completes the execution when a step needs a human", async () => {
     { _tag: "NeedsHuman", stage: "spec" },
   ]);
   expect(state()).toEqual({ _tag: "waiting-on-human", asker: "spec" });
+}, 120_000);
+
+it("fails the ticket and notifies once after the last attempt of a crashing step", async () => {
+  const { activities, applied, steps, notified, state } = recordingActivities({
+    building: "crash",
+  });
+
+  const handle = await runTicket(activities, "ticket-crashes");
+
+  expect((await handle.describe()).status.name).toBe("COMPLETED");
+  expect(steps).toEqual(["triage", "spec", "building", "building", "building"]);
+  expect(applied).toEqual([
+    { _tag: "TriageStarted" },
+    { _tag: "StepSucceeded", stage: "triage" },
+    { _tag: "StepSucceeded", stage: "spec" },
+    { _tag: "RunFailed", stage: "building", reason: "retries-exhausted" },
+  ]);
+  expect(notified).toEqual([["building", 3]]);
+  expect(state()).toEqual({ _tag: "failed", reason: "retries-exhausted" });
 }, 120_000);

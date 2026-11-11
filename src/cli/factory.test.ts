@@ -7,6 +7,7 @@ import { HttpClient, HttpClientRequest, HttpRouter } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { TestConsole } from "effect/testing";
 import { ApiTokensPostgres } from "../adapters/postgres/api-tokens.js";
+import { NotifierPostgres } from "../adapters/postgres/notifier.js";
 import {
   TestDatabaseApi,
   TestDatabaseOwner,
@@ -23,7 +24,9 @@ import { factory } from "./factory.js";
 const NoTicketRuns = Layer.succeed(TicketRuns)(TicketRuns.of({ start: () => Effect.void }));
 
 const Api = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
-  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, NoTicketRuns)),
+  Layer.provide(
+    Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, NotifierPostgres, NoTicketRuns),
+  ),
   Layer.provide(TestDatabaseApi),
   Layer.provideMerge(TestOrgsLive),
   Layer.provideMerge(TestDatabaseOwner),
@@ -109,6 +112,25 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
         _tag: "UserError",
         userMessage: `ticket ${id} is triage, which has nothing to approve`,
       });
+    }),
+  );
+
+  it.effect("prints an unread notification above the queue once", () =>
+    Effect.gen(function* () {
+      const [created] = yield* run("create", "--title", "crashes in building");
+      const id = String(created).slice(0, 36);
+      const sql = yield* PgClient.PgClient;
+      yield* sql`
+        INSERT INTO notifications (org_id, ticket_id, kind, body)
+        SELECT org_id, id, 'run-failed', ${`ticket ${id} failed at building after 3 attempts`}
+        FROM tickets WHERE id = ${id}
+      `;
+
+      const first = yield* run("status");
+      const second = yield* run("status");
+
+      expect(first[0]).toBe(`! ticket ${id} failed at building after 3 attempts`);
+      expect(second.filter((line) => String(line).startsWith("!"))).toEqual([]);
     }),
   );
 

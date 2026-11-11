@@ -80,6 +80,7 @@ const rejected = (cause: HttpApiError.Unauthorized) =>
 
 const printQueue = Effect.gen(function* () {
   const client = yield* FactoryClient;
+  for (const { body } of yield* client.notifications.read()) yield* Console.log(`! ${body}`);
   const tickets = yield* client.tickets.list();
   if (tickets.length === 0) return yield* Console.log("no tickets");
   for (const ticket of tickets) yield* Console.log(formatTicket(ticket));
