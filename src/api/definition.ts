@@ -8,6 +8,7 @@ import {
   HttpApiSchema,
   HttpApiSecurity,
 } from "effect/http-api";
+import { Notification } from "../application/notifier.js";
 import { CurrentPrincipal } from "../application/tenancy.js";
 import { Ticket, TicketHistoryEntry, TicketId } from "../application/ticket-store.js";
 
@@ -41,6 +42,15 @@ export const FactoryApi = HttpApi.make("factory")
           params: { id: TicketId },
           success: Ticket,
           error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent],
+        }),
+      )
+      .middleware(Authorization),
+  )
+  .add(
+    HttpApiGroup.make("notifications")
+      .add(
+        HttpApiEndpoint.post("read", "/notifications/read", {
+          success: Schema.Array(Notification),
         }),
       )
       .middleware(Authorization),

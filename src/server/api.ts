@@ -3,6 +3,7 @@ import { HttpApiBuilder, HttpApiError, HttpApiMiddleware } from "effect/http-api
 import { SqlClient } from "effect/sql";
 import { FactoryApi } from "../api/definition.js";
 import { approve } from "../application/approve.js";
+import { Notifier } from "../application/notifier.js";
 import { CurrentPrincipal } from "../application/tenancy.js";
 import { TicketRuns } from "../application/ticket-runs.js";
 import { TicketStore } from "../application/ticket-store.js";
@@ -53,8 +54,17 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
   }),
 );
 
+const NotificationsHandlers = HttpApiBuilder.group(FactoryApi, "notifications", (handlers) =>
+  Effect.gen(function* () {
+    const notifier = yield* Notifier;
+    return handlers.handle("read", () =>
+      CurrentPrincipal.use(({ orgId }) => notifier.takeUnread(orgId)).pipe(Effect.orDie),
+    );
+  }),
+);
+
 export const ApiLive = HttpApiBuilder.layer(FactoryApi).pipe(
-  Layer.provide(TicketsHandlers),
+  Layer.provide([TicketsHandlers, NotificationsHandlers]),
   Layer.provide(AuthorizationLive),
   Layer.provide(HttpApiMiddleware.layerProblemDetails({ includeDetails: true })),
 );

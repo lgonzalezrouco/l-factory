@@ -3,6 +3,7 @@ import { expect, layer } from "@effect/vitest";
 import { Effect, Layer, Redacted } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter } from "effect/http";
 import { ApiTokensPostgres } from "../adapters/postgres/api-tokens.js";
+import { NotifierPostgres } from "../adapters/postgres/notifier.js";
 import {
   TestDatabaseApi,
   TestDatabaseOwner,
@@ -20,7 +21,9 @@ const RecordingTicketRuns = Layer.succeed(TicketRuns)(
 );
 
 const Server = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
-  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, RecordingTicketRuns)),
+  Layer.provide(
+    Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, NotifierPostgres, RecordingTicketRuns),
+  ),
   Layer.provide(TestDatabaseApi),
   Layer.provideMerge(TestOrgsLive.pipe(Layer.provide(TestDatabaseOwner))),
   Layer.provideMerge(NodeHttpServer.layerTest),
