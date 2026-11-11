@@ -1,7 +1,7 @@
 import { Data, Effect, Schema } from "effect";
 import { RunStage } from "../../domain/ticket/ticket.js";
 
-export const FakeDirective = Schema.Literals(["succeeded"]);
+export const FakeDirective = Schema.Literals(["succeeded", "needs-human"]);
 export type FakeDirective = typeof FakeDirective.Type;
 
 export type FakeScript = Partial<Record<RunStage, FakeDirective>>;

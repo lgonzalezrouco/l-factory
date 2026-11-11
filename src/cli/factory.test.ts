@@ -54,7 +54,9 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
       const [created] = yield* run("create", "--title", "write the cli");
       const id = String(created).slice(0, 36);
 
-      expect(yield* run("status")).toContain(`${id}  new                          write the cli`);
+      expect(yield* run("status")).toContain(
+        `${id}  new                                   write the cli`,
+      );
     }),
   );
 
@@ -86,12 +88,27 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
       `;
 
       expect(yield* run("status", id)).toEqual([
-        `${id}  new                          with history`,
+        `${id}  new                                   with history`,
         "history:",
         "  0  2026-01-01T00:00:00.000Z  created                     new",
         "  1  2026-01-01T00:00:01.000Z  TriageStarted               triage",
         "  2  2026-01-01T00:00:02.000Z  StepSucceeded stage=triage  spec",
       ]);
+    }),
+  );
+
+  it.effect("names the state of a ticket that has nothing to approve", () =>
+    Effect.gen(function* () {
+      const [created] = yield* run("create", "--title", "approve twice");
+      const id = String(created).slice(0, 36);
+
+      expect(yield* run("approve", id)).toEqual([
+        `${id}  triage                                approve twice`,
+      ]);
+      expect(yield* Effect.flip(run("approve", id))).toMatchObject({
+        _tag: "UserError",
+        userMessage: `ticket ${id} is triage, which has nothing to approve`,
+      });
     }),
   );
 

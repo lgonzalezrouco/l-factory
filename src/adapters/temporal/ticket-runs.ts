@@ -1,10 +1,18 @@
 import { Client, Connection } from "@temporalio/client";
-import { WorkflowIdConflictPolicy, WorkflowIdReusePolicy } from "@temporalio/common";
+import {
+  WorkflowExecutionAlreadyStartedError,
+  WorkflowIdConflictPolicy,
+  WorkflowIdReusePolicy,
+} from "@temporalio/common";
 import { Effect, Layer } from "effect";
 import { TicketRuns, TicketRunsUnavailable } from "../../application/ticket-runs.js";
 import { temporalAddress, ticketRunsTaskQueue, ticketRunWorkflowId } from "./names.js";
 
 const unavailable = (cause: unknown) => new TicketRunsUnavailable({ cause });
+
+const ignoreAlreadyStarted = (error: unknown): void => {
+  if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+};
 
 export const TicketRunsTemporal = Layer.effect(TicketRuns)(
   Effect.gen(function* () {
@@ -19,15 +27,17 @@ export const TicketRunsTemporal = Layer.effect(TicketRuns)(
       start: (ticketId) =>
         Effect.tryPromise({
           try: () =>
-            client.workflow.start("ticketRun", {
-              taskQueue: ticketRunsTaskQueue,
-              workflowId: ticketRunWorkflowId(ticketId),
-              args: [ticketId],
-              workflowIdReusePolicy: WorkflowIdReusePolicy.ALLOW_DUPLICATE,
-              workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
-            }),
+            client.workflow
+              .start("ticketRun", {
+                taskQueue: ticketRunsTaskQueue,
+                workflowId: ticketRunWorkflowId(ticketId),
+                args: [ticketId],
+                workflowIdReusePolicy: WorkflowIdReusePolicy.ALLOW_DUPLICATE,
+                workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
+              })
+              .then(() => undefined, ignoreAlreadyStarted),
           catch: unavailable,
-        }).pipe(Effect.asVoid),
+        }),
     });
   }),
 );

@@ -14,6 +14,7 @@ const { runAgentStep } = proxyActivities<TicketRunActivities>({
 
 const outcomeEvent: Record<StepOutcome, (stage: RunStage) => TicketEvent> = {
   succeeded: (stage) => ({ _tag: "StepSucceeded", stage }),
+  "needs-input": (stage) => ({ _tag: "NeedsHuman", stage }),
 };
 
 export async function ticketRun(ticketId: string): Promise<void> {
