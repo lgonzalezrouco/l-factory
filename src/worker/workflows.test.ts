@@ -1,4 +1,6 @@
 import { fileURLToPath } from "node:url";
+import { Context } from "@temporalio/activity";
+import { decodeTimeoutType } from "@temporalio/common";
 import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
 import { Result } from "effect";
@@ -23,7 +25,9 @@ afterAll(async () => {
   await env?.teardown();
 });
 
-const recordingActivities = (outcomes: Partial<Record<RunStage, StepOutcome | "crash">>) => {
+const recordingActivities = (
+  outcomes: Partial<Record<RunStage, StepOutcome | "crash" | "hang-once">>,
+) => {
   const applied: Array<TicketEvent> = [];
   const steps: Array<RunStage> = [];
   const notified: Array<[RunStage, number]> = [];
@@ -38,6 +42,11 @@ const recordingActivities = (outcomes: Partial<Record<RunStage, StepOutcome | "c
       steps.push(stage);
       const outcome = outcomes[stage] ?? "succeeded";
       if (outcome === "crash") throw new Error(`${stage} crashed`);
+      if (outcome === "hang-once") {
+        // Context.sleep ends on cancellation, so the timed-out first attempt cannot hold up worker shutdown.
+        if (Context.current().info.attempt === 1) await Context.current().sleep(7_000);
+        return "succeeded";
+      }
       return outcome;
     },
     maxAttempts: async () => 3,
@@ -110,4 +119,30 @@ it("fails the ticket and notifies once after the last attempt of a crashing step
   ]);
   expect(notified).toEqual([["building", 3]]);
   expect(state()).toEqual({ _tag: "failed", reason: "retries-exhausted" });
+}, 120_000);
+
+it("times out a step that stops heartbeating and retries it", async () => {
+  const { activities, steps, state } = recordingActivities({ spec: "hang-once" });
+
+  const handle = await runTicket(activities, "ticket-hangs-once");
+
+  const events = (await handle.fetchHistory()).events ?? [];
+  const runAgentStepIds = new Set(
+    events
+      .filter(
+        (event) =>
+          event.activityTaskScheduledEventAttributes?.activityType?.name === "runAgentStep",
+      )
+      .map((event) => Number(event.eventId)),
+  );
+  const retried = events
+    .map((event) => event.activityTaskStartedEventAttributes)
+    .filter((started) => runAgentStepIds.has(Number(started?.scheduledEventId)))
+    .filter((started) => started?.attempt === 2);
+  expect(retried).toHaveLength(1);
+  expect(decodeTimeoutType(retried[0]?.lastFailure?.timeoutFailureInfo?.timeoutType)).toBe(
+    "HEARTBEAT",
+  );
+  expect(steps).toEqual(["triage", "spec", "spec", "building", "review"]);
+  expect(state()).toEqual({ _tag: "ready" });
 }, 120_000);
