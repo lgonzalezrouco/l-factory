@@ -65,6 +65,30 @@
           }
         ]
       }
+    },
+    {
+      "files": ["src/worker/workflows.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "effect",
+                  "effect/*",
+                  "@effect/*",
+                  "**/application/**",
+                  "**/adapters/**",
+                  "**/domain/**"
+                ],
+                "allowTypeImports": true,
+                "message": "Workflow code runs in Temporal's sandbox and imports only types and @temporalio/workflow."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

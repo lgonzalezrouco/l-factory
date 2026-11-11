@@ -9,11 +9,14 @@ import {
   TestOrgs,
   TestOrgsLive,
 } from "../adapters/postgres/test-database.js";
+import { TicketRuns } from "../application/ticket-runs.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { ApiLive } from "./api.js";
 
+const NoTicketRuns = Layer.succeed(TicketRuns)(TicketRuns.of({ start: () => Effect.void }));
+
 const Server = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
-  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres)),
+  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, NoTicketRuns)),
   Layer.provide(TestDatabaseApi),
   Layer.provideMerge(TestOrgsLive.pipe(Layer.provide(TestDatabaseOwner))),
   Layer.provideMerge(NodeHttpServer.layerTest),

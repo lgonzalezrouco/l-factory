@@ -2,17 +2,22 @@ import { Effect, Layer } from "effect";
 import { HttpApiBuilder, HttpApiError, HttpApiMiddleware } from "effect/http-api";
 import { FactoryApi } from "../api/definition.js";
 import { CurrentPrincipal } from "../application/tenancy.js";
+import { TicketRuns } from "../application/ticket-runs.js";
 import { TicketStore } from "../application/ticket-store.js";
 import { AuthorizationLive } from "./auth.js";
 
 const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =>
   Effect.gen(function* () {
     const store = yield* TicketStore;
+    const runs = yield* TicketRuns;
     return handlers
       .handle("create", ({ payload }) =>
         CurrentPrincipal.use(({ orgId }) =>
           store.create(orgId, { title: payload.title, body: payload.body ?? "" }),
-        ).pipe(Effect.orDie),
+        ).pipe(
+          Effect.tap((ticket) => runs.start(ticket.id)),
+          Effect.orDie,
+        ),
       )
       .handle("list", () =>
         CurrentPrincipal.use(({ orgId }) => store.list(orgId)).pipe(Effect.orDie),

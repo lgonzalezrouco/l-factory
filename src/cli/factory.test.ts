@@ -13,14 +13,17 @@ import {
   TestOrgs,
   TestOrgsLive,
 } from "../adapters/postgres/test-database.js";
+import { TicketRuns } from "../application/ticket-runs.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { FactoryApi } from "../api/definition.js";
 import { ApiLive } from "../server/api.js";
 import { FactoryClient } from "./client.js";
 import { factory } from "./factory.js";
 
+const NoTicketRuns = Layer.succeed(TicketRuns)(TicketRuns.of({ start: () => Effect.void }));
+
 const Api = HttpRouter.serve(ApiLive, { disableListenLog: true, disableLogger: true }).pipe(
-  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres)),
+  Layer.provide(Layer.mergeAll(TicketStorePostgres, ApiTokensPostgres, NoTicketRuns)),
   Layer.provide(TestDatabaseApi),
   Layer.provideMerge(TestOrgsLive),
   Layer.provideMerge(TestDatabaseOwner),
@@ -66,11 +69,12 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
     }),
   );
 
-  it.effect("prints a ticket's state and its event history in order", () =>
+  it.effect("prints the state each event in a ticket's history led to", () =>
     Effect.gen(function* () {
       const [created] = yield* run("create", "--title", "with history");
       const id = String(created).slice(0, 36);
       const sql = yield* PgClient.PgClient;
+      yield* sql`UPDATE tickets SET created_at = '2026-01-01T00:00:00Z' WHERE id = ${id}`;
       yield* sql`
         INSERT INTO ticket_events (ticket_id, org_id, project_id, seq, event, at)
         SELECT tickets.id, org_id, project_id, seq, event::jsonb, at::timestamptz
@@ -83,9 +87,10 @@ layer(Cli, { timeout: "2 minutes" })("factory cli", (it) => {
 
       expect(yield* run("status", id)).toEqual([
         `${id}  new                          with history`,
-        "events:",
-        "  1  2026-01-01T00:00:01.000Z  TriageStarted",
-        "  2  2026-01-01T00:00:02.000Z  StepSucceeded stage=triage",
+        "history:",
+        "  0  2026-01-01T00:00:00.000Z  created                     new",
+        "  1  2026-01-01T00:00:01.000Z  TriageStarted               triage",
+        "  2  2026-01-01T00:00:02.000Z  StepSucceeded stage=triage  spec",
       ]);
     }),
   );

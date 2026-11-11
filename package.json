@@ -17,6 +17,7 @@
     "db:migrate": "node --env-file-if-exists=.env --import tsx src/server/migrate.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx src/server/seed.ts",
     "server": "node --env-file-if-exists=.env --import tsx src/server/main.ts",
+    "worker": "node --env-file-if-exists=.env --import tsx src/worker/main.ts",
     "factory": "node --env-file-if-exists=.env --import tsx src/cli/main.ts",
     "prepare": "effect-tsgo patch --oxlint && sh scripts/setup-claude.sh && lefthook install",
     "setup:claude": "sh scripts/setup-claude.sh",
@@ -25,6 +26,11 @@
   "dependencies": {
     "@effect/platform-node": "^4.1.2",
     "@effect/sql-pg": "^4.1.2",
+    "@temporalio/activity": "1.25.0",
+    "@temporalio/client": "1.25.0",
+    "@temporalio/common": "1.25.0",
+    "@temporalio/worker": "1.25.0",
+    "@temporalio/workflow": "1.25.0",
     "effect": "^4.1.2"
   },
   "devDependencies": {
@@ -33,6 +39,7 @@
     "@effect/tsgo": "^0.67.5",
     "@effect/vitest": "^4.1.2",
     "@secretlint/secretlint-rule-preset-recommend": "^13.1.0",
+    "@temporalio/testing": "1.25.0",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^24.19.2",
     "lefthook": "^2.2.2",
