@@ -2,10 +2,10 @@ import { Context } from "@temporalio/activity";
 import { Effect, type ManagedRuntime, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { Agent, type StepOutcome } from "../application/agent.js";
-import { applyEvent, type RunPosition } from "../application/apply-event.js";
+import { applyEvent, positionOf, type RunPosition } from "../application/apply-event.js";
 import { Notifier } from "../application/notifier.js";
 import { TicketId } from "../application/ticket-store.js";
-import { RunStage, TicketEvent } from "../domain/ticket/ticket.js";
+import { type InvalidTransition, RunStage, TicketEvent } from "../domain/ticket/ticket.js";
 
 export interface TicketRunActivities {
   readonly applyEvent: (ticketId: string, event: TicketEvent) => Promise<RunPosition>;
@@ -15,6 +15,9 @@ export interface TicketRunActivities {
 }
 
 type WorkerServices = SqlClient.SqlClient | Agent | Notifier;
+
+const followStoredPosition = (refused: InvalidTransition) =>
+  Effect.succeed(positionOf(refused.from));
 
 const TicketBody = Schema.Tuple([
   Schema.Struct({ body: Schema.String, askedBefore: Schema.Boolean }),
@@ -37,7 +40,10 @@ export const makeActivities = (
         Effect.all([
           Schema.decodeEffect(TicketId)(ticketId),
           Schema.decodeEffect(TicketEvent)(event),
-        ]).pipe(Effect.flatMap(([id, decoded]) => applyEvent(id, decoded))),
+        ]).pipe(
+          Effect.flatMap(([id, decoded]) => applyEvent(id, decoded)),
+          Effect.catchTag("InvalidTransition", followStoredPosition),
+        ),
       ),
     runAgentStep: (ticketId, stage) =>
       run((activity) =>

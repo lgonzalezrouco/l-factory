@@ -6,6 +6,7 @@ import {
   transition,
   type RunStage,
   type TicketEvent,
+  type TransitionRejected,
 } from "../domain/ticket/ticket.js";
 import { StoredTicketUndecodable, TicketNotFound, type TicketId } from "./ticket-store.js";
 
@@ -13,10 +14,14 @@ export type RunPosition =
   | { readonly running: true; readonly stage: RunStage }
   | { readonly running: false };
 
-const positionOf = (state: TicketState): RunPosition =>
+export const positionOf = (state: TicketState): RunPosition =>
   isRunning(state) ? { running: true, stage: state._tag } : { running: false };
 
-export type ApplyEventError = TicketNotFound | StoredTicketUndecodable | SqlError.SqlError;
+export type ApplyEventError =
+  | TicketNotFound
+  | StoredTicketUndecodable
+  | TransitionRejected
+  | SqlError.SqlError;
 
 const LockedTicket = Schema.Struct({
   state: TicketState,
@@ -43,7 +48,7 @@ export const applyEvent = (
           Effect.mapError((cause) => new StoredTicketUndecodable({ cause })),
         );
         const next = transition(ticket.state, event, "released");
-        if (Result.isFailure(next)) return positionOf(ticket.state);
+        if (Result.isFailure(next)) return yield* next.failure;
         yield* sql`
           UPDATE tickets SET state = ${JSON.stringify(next.success)}::jsonb, version = version + 1
           WHERE id = ${ticketId}
