@@ -3,7 +3,7 @@ import { Data, Result, Schema } from "effect";
 export const RunStage = Schema.Literals(["triage", "spec", "building", "review"]);
 export type RunStage = typeof RunStage.Type;
 
-export const FailureReason = Schema.Literals(["budget", "retries-exhausted"]);
+export const FailureReason = Schema.Literals(["budget", "retries-exhausted", "killed"]);
 export type FailureReason = typeof FailureReason.Type;
 
 export const TicketState = Schema.Union([
@@ -30,6 +30,8 @@ export const TicketEvent = Schema.TaggedUnion({
   HumanAnswered: {},
   RunFailed: { stage: RunStage, reason: FailureReason },
   PrMerged: {},
+  Paused: {},
+  Killed: {},
 });
 export type TicketEvent = typeof TicketEvent.Type;
 type EventTag = TicketEvent["_tag"];
@@ -57,20 +59,24 @@ type Cell<S extends Status, E extends EventTag> = (
 type Row<S extends Status> = { readonly [E in EventTag]?: Cell<S, E> };
 type Table = { readonly [S in Status]: Row<S> };
 
+const killed = (): TicketState => ({ _tag: "failed", reason: "killed" });
+
 const advancesTo = (next: TicketState): Row<RunStage> => ({
   StepSucceeded: () => next,
   NeedsHuman: (state) => ({ _tag: "waiting-on-human", asker: state._tag }),
   RunFailed: (_, event) => ({ _tag: "failed", reason: event.reason }),
+  Paused: (state) => ({ _tag: "waiting-on-human", asker: state._tag }),
+  Killed: killed,
 });
 
 const table: Table = {
-  new: { TriageStarted: () => ({ _tag: "triage" }) },
+  new: { TriageStarted: () => ({ _tag: "triage" }), Killed: killed },
   triage: advancesTo({ _tag: "spec" }),
   spec: advancesTo({ _tag: "building" }),
   building: advancesTo({ _tag: "review" }),
   review: advancesTo({ _tag: "ready" }),
-  "waiting-on-human": { HumanAnswered: (state) => ({ _tag: state.asker }) },
-  ready: { PrMerged: () => ({ _tag: "merged" }) },
+  "waiting-on-human": { HumanAnswered: (state) => ({ _tag: state.asker }), Killed: killed },
+  ready: { PrMerged: () => ({ _tag: "merged" }), Killed: killed },
   merged: {},
   failed: {},
 };
