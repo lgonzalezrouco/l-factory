@@ -37,6 +37,11 @@ export const FactoryApi = HttpApi.make("factory")
           params: { id: TicketId },
           success: Schema.Array(TicketHistoryEntry),
         }),
+        HttpApiEndpoint.post("approve", "/tickets/:id/approve", {
+          params: { id: TicketId },
+          success: Ticket,
+          error: [HttpApiError.NotFoundNoContent, HttpApiError.ConflictNoContent],
+        }),
       )
       .middleware(Authorization),
   )

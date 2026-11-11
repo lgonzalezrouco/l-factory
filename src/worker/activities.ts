@@ -11,7 +11,7 @@ export interface TicketRunActivities {
   readonly runAgentStep: (ticketId: string, stage: RunStage) => Promise<StepOutcome>;
 }
 
-const TicketBody = Schema.Tuple([Schema.Struct({ body: Schema.String })]);
+const TicketBody = Schema.Tuple([Schema.Struct({ body: Schema.String, answered: Schema.Boolean })]);
 
 export const makeActivities = (
   runtime: ManagedRuntime.ManagedRuntime<SqlClient.SqlClient | Agent, unknown>,
@@ -37,12 +37,21 @@ export const makeActivities = (
           const id = yield* Schema.decodeEffect(TicketId)(ticketId);
           const decodedStage = yield* Schema.decodeEffect(RunStage)(stage);
           const sql = yield* SqlClient.SqlClient;
-          const [{ body }] = yield* Schema.decodeUnknownEffect(TicketBody)(
-            yield* sql`SELECT body FROM tickets WHERE id = ${id}`,
+          // Only HumanAnswered leaves waiting-on-human, so an earlier NeedsHuman from the
+          // stage that is running again was answered.
+          const [{ body, answered }] = yield* Schema.decodeUnknownEffect(TicketBody)(
+            yield* sql`
+              SELECT body, EXISTS (
+                SELECT FROM ticket_events
+                WHERE ticket_id = tickets.id
+                  AND event = ${JSON.stringify({ _tag: "NeedsHuman", stage: decodedStage })}::jsonb
+              ) AS answered
+              FROM tickets WHERE id = ${id}
+            `,
           );
           const agent = yield* Agent;
           return yield* agent.runStep(
-            { ticketId: id, body, stage: decodedStage },
+            { ticketId: id, body, stage: decodedStage, answered },
             Effect.sync(() => activity.heartbeat()),
           );
         }),

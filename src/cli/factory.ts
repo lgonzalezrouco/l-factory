@@ -9,7 +9,7 @@ import { FactoryClient } from "./client.js";
 const formatState = (state: TicketState): string => {
   switch (state._tag) {
     case "waiting-on-human":
-      return `waiting-on-human (${state.asker})`;
+      return `waiting-on-human (asked by ${state.asker})`;
     case "failed":
       return `failed (${state.reason})`;
     default:
@@ -17,7 +17,7 @@ const formatState = (state: TicketState): string => {
   }
 };
 
-const stateWidth = "waiting-on-human (building)".length;
+const stateWidth = "waiting-on-human (asked by building)".length;
 
 const formatTicket = (ticket: Ticket): string =>
   `${ticket.id}  ${formatState(ticket.state).padEnd(stateWidth)}  ${ticket.title}`;
@@ -101,6 +101,29 @@ const printTicket = (id: TicketId) =>
     for (const line of formatHistory(historyRows(ticket, history))) yield* Console.log(line);
   });
 
+const approveTicket = (id: TicketId) =>
+  Effect.gen(function* () {
+    const client = yield* FactoryClient;
+    const ticket = yield* client.tickets.approve({ params: { id } }).pipe(
+      Effect.catchTags({
+        NotFound: (cause) =>
+          Effect.fail(new CliError.UserError({ cause, userMessage: `no ticket ${id}` })),
+        Conflict: (cause) =>
+          client.tickets.get({ params: { id } }).pipe(
+            Effect.flatMap(({ state }) =>
+              Effect.fail(
+                new CliError.UserError({
+                  cause,
+                  userMessage: `ticket ${id} is ${formatState(state)}, which has nothing to approve`,
+                }),
+              ),
+            ),
+          ),
+      }),
+    );
+    yield* Console.log(formatTicket(ticket));
+  });
+
 const create = Command.make(
   "create",
   {
@@ -128,4 +151,16 @@ const status = Command.make(
     ),
 );
 
-export const factory = Command.make("factory").pipe(Command.withSubcommands([create, status]));
+const approve = Command.make(
+  "approve",
+  { id: Argument.String("id").pipe(Argument.withSchema(TicketId)) },
+  ({ id }) =>
+    approveTicket(id).pipe(
+      Effect.catchReason("HttpClientError", "TransportError", unreachable),
+      Effect.catchTag("Unauthorized", rejected),
+    ),
+);
+
+export const factory = Command.make("factory").pipe(
+  Command.withSubcommands([create, status, approve]),
+);

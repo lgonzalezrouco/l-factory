@@ -1,6 +1,8 @@
 import { Effect, Layer } from "effect";
 import { HttpApiBuilder, HttpApiError, HttpApiMiddleware } from "effect/http-api";
 import { FactoryApi } from "../api/definition.js";
+import { SqlClient } from "effect/sql";
+import { approve } from "../application/approve.js";
 import { CurrentPrincipal } from "../application/tenancy.js";
 import { TicketRuns } from "../application/ticket-runs.js";
 import { TicketStore } from "../application/ticket-store.js";
@@ -10,6 +12,7 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
   Effect.gen(function* () {
     const store = yield* TicketStore;
     const runs = yield* TicketRuns;
+    const sql = yield* SqlClient.SqlClient;
     return handlers
       .handle("create", ({ payload }) =>
         CurrentPrincipal.use(({ orgId }) =>
@@ -30,6 +33,22 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
       )
       .handle("history", ({ params }) =>
         CurrentPrincipal.use(({ orgId }) => store.history(orgId, params.id)).pipe(Effect.orDie),
+      )
+      .handle("approve", ({ params }) =>
+        CurrentPrincipal.use(({ orgId }) =>
+          Effect.gen(function* () {
+            const position = yield* approve(orgId, params.id);
+            if (position.running) yield* runs.start(params.id);
+            return yield* store.get(orgId, params.id);
+          }),
+        ).pipe(
+          Effect.provideService(SqlClient.SqlClient, sql),
+          Effect.catchTags({
+            TicketNotFound: () => Effect.fail(new HttpApiError.NotFound()),
+            NoApproval: () => Effect.fail(new HttpApiError.Conflict()),
+          }),
+          Effect.orDie,
+        ),
       );
   }),
 );

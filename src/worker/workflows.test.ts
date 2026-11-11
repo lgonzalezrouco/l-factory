@@ -3,9 +3,11 @@ import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
 import { Result } from "effect";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import type { StepOutcome } from "../application/agent.js";
 import {
   isRunning,
   transition,
+  type RunStage,
   type TicketEvent,
   type TicketState,
 } from "../domain/ticket/ticket.js";
@@ -21,7 +23,7 @@ afterAll(async () => {
   await env?.teardown();
 });
 
-it("drives a ticket whose every step succeeds from new to ready", async () => {
+const recordingActivities = (outcomes: Partial<Record<RunStage, StepOutcome>>) => {
   const applied: Array<TicketEvent> = [];
   let state: TicketState = { _tag: "new" };
   const activities: TicketRunActivities = {
@@ -30,22 +32,31 @@ it("drives a ticket whose every step succeeds from new to ready", async () => {
       state = Result.getOrThrow(transition(state, event, "released"));
       return isRunning(state) ? { running: true, stage: state._tag } : { running: false };
     },
-    runAgentStep: async () => "succeeded",
+    runAgentStep: async (_, stage) => outcomes[stage] ?? "succeeded",
   };
+  return { activities, applied, state: () => state };
+};
+
+const runTicket = async (activities: TicketRunActivities, workflowId: string) => {
   const worker = await Worker.create({
     connection: env.nativeConnection,
-    taskQueue: "test",
+    taskQueue: workflowId,
     workflowsPath: fileURLToPath(new URL("workflows.ts", import.meta.url)),
     activities,
   });
+  const handle = await env.client.workflow.start("ticketRun", {
+    taskQueue: workflowId,
+    workflowId,
+    args: ["8f0d6a8e-2f5b-4c1e-9a57-3f0c2d1b7e64"],
+  });
+  await worker.runUntil(handle.result());
+  return handle;
+};
 
-  await worker.runUntil(
-    env.client.workflow.execute("ticketRun", {
-      taskQueue: "test",
-      workflowId: "ticket-test",
-      args: ["8f0d6a8e-2f5b-4c1e-9a57-3f0c2d1b7e64"],
-    }),
-  );
+it("drives a ticket whose every step succeeds from new to ready", async () => {
+  const { activities, applied, state } = recordingActivities({});
+
+  await runTicket(activities, "ticket-succeeds");
 
   expect(applied).toEqual([
     { _tag: "TriageStarted" },
@@ -54,5 +65,19 @@ it("drives a ticket whose every step succeeds from new to ready", async () => {
     { _tag: "StepSucceeded", stage: "building" },
     { _tag: "StepSucceeded", stage: "review" },
   ]);
-  expect(state).toEqual({ _tag: "ready" });
+  expect(state()).toEqual({ _tag: "ready" });
+}, 120_000);
+
+it("completes the execution when a step needs a human", async () => {
+  const { activities, applied, state } = recordingActivities({ spec: "needs-input" });
+
+  const handle = await runTicket(activities, "ticket-needs-human");
+
+  expect((await handle.describe()).status.name).toBe("COMPLETED");
+  expect(applied).toEqual([
+    { _tag: "TriageStarted" },
+    { _tag: "StepSucceeded", stage: "triage" },
+    { _tag: "NeedsHuman", stage: "spec" },
+  ]);
+  expect(state()).toEqual({ _tag: "waiting-on-human", asker: "spec" });
 }, 120_000);
