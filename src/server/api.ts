@@ -20,7 +20,16 @@ const TicketsHandlers = HttpApiBuilder.group(FactoryApi, "tickets", (handlers) =
       CurrentPrincipal.use(({ orgId }) =>
         Effect.gen(function* () {
           yield* applyEventInOrg(orgId, id, event);
-          yield* runs.cancel(id);
+          yield* runs
+            .cancel(id)
+            .pipe(
+              Effect.catchTag("TicketRunsUnavailable", ({ cause }) =>
+                Effect.logWarning(
+                  `ticket ${id} is stopped, but its run could not be cancelled and ends at its next step`,
+                  cause,
+                ),
+              ),
+            );
           return yield* store.get(orgId, id);
         }),
       ).pipe(

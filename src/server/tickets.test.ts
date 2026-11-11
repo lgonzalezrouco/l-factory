@@ -10,17 +10,21 @@ import {
   TestOrgs,
   TestOrgsLive,
 } from "../adapters/postgres/test-database.js";
-import { TicketRuns } from "../application/ticket-runs.js";
+import { TicketRuns, TicketRunsUnavailable } from "../application/ticket-runs.js";
 import { Ticket, type TicketId } from "../application/ticket-store.js";
 import { TicketStorePostgres } from "../adapters/postgres/ticket-store.js";
 import { ApiLive } from "./api.js";
 
 const started: Array<TicketId> = [];
 const cancelled: Array<TicketId> = [];
+let temporalDown = false;
 const RecordingTicketRuns = Layer.succeed(TicketRuns)(
   TicketRuns.of({
     start: (id) => Effect.sync(() => started.push(id)),
-    cancel: (id) => Effect.sync(() => cancelled.push(id)),
+    cancel: (id) =>
+      temporalDown
+        ? Effect.fail(new TicketRunsUnavailable({ cause: "connection refused" }))
+        : Effect.sync(() => cancelled.push(id)),
   }),
 );
 
@@ -190,6 +194,25 @@ layer(Server, { timeout: "2 minutes" })("tickets api", (it) => {
       const response = yield* killTicket("00000000-0000-4000-8000-000000000000", yield* adminToken);
 
       expect(response.status).toBe(404);
+    }),
+  );
+
+  it.effect("pauses a running ticket even when its run cannot be cancelled", () =>
+    Effect.gen(function* () {
+      const token = yield* adminToken;
+      const { id } = yield* createTicket("temporal down", token);
+      yield* approveTicket(id, token);
+      temporalDown = true;
+
+      const response = yield* pauseTicket(id, token).pipe(
+        Effect.ensuring(Effect.sync(() => (temporalDown = false))),
+      );
+
+      expect(response.status).toBe(200);
+      expect(yield* response.json).toMatchObject({
+        id,
+        state: { _tag: "waiting-on-human", asker: "triage" },
+      });
     }),
   );
 });
